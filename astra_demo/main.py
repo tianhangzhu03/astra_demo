@@ -11,9 +11,8 @@ from .ble_client import BleConfig, BleController
 from .camera_source import create_camera_source
 from .config import AstraDemoConfig
 from .grab_logic import GrabContext, sample_depth_5x5, update_grab_state
-from .virtual_prop import VirtualProp
-
 from .mp_hands_compat import load_hands_api
+from .virtual_prop import VirtualProp
 
 
 def get_thumb_index_data(hand_lms, w: int, h: int) -> tuple[tuple[int, int], tuple[int, int], tuple[int, int], float]:
@@ -73,6 +72,22 @@ def draw_panel(frame, targets, hover_key: int, grab_key: int) -> None:
     cv2.addWeighted(overlay, 0.22, frame, 0.78, 0, frame)
 
 
+def open_top_camera(preferred_id: int, width: int, height: int):
+    tried = []
+    for cam_id in [preferred_id, 0, 1, 2, 3, 4]:
+        if cam_id in tried:
+            continue
+        tried.append(cam_id)
+        cap = cv2.VideoCapture(cam_id)
+        if cap.isOpened():
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+            print(f"[CAM] top(phone) use id={cam_id}")
+            return cap
+        cap.release()
+    raise RuntimeError(f"Top camera open failed. tried ids={tried}")
+
+
 def main() -> None:
     if platform != "win32":
         print("[WARN] This Astra demo is intended for Windows + Astra SDK.")
@@ -90,64 +105,89 @@ def main() -> None:
     )
     ble.start()
 
-    cam = create_camera_source(fps=cfg.camera_fps)
-    cam.start()
+    top_cap = open_top_camera(cfg.top_camera_id, cfg.frame_width, cfg.frame_height)
+    side_cam = create_camera_source(fps=cfg.camera_fps)
+    side_cam.start()
 
     mp_hands, _ = load_hands_api()
-    hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.6, min_tracking_confidence=0.6)
+    hands_top = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.6, min_tracking_confidence=0.6)
+    hands_side = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.6, min_tracking_confidence=0.6)
 
     grab_ctx = GrabContext()
     prop = VirtualProp(release_return_ms=cfg.release_return_ms)
 
-    smooth_mid: Optional[list[float]] = None
+    smooth_top_mid: Optional[list[float]] = None
+    smooth_side_mid: Optional[list[float]] = None
 
-    print("[INFO] Astra single-camera grab demo starting. Press 'q' to quit, 'v' to toggle prop type.")
+    print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit, 'v' to toggle prop type.")
 
     try:
         while True:
-            bundle = cam.read()
-            if bundle is None:
+            ok_top, top_frame_raw = top_cap.read()
+            side_bundle = side_cam.read()
+            if not ok_top or side_bundle is None:
                 time.sleep(0.01)
                 continue
 
-            frame = cv2.flip(bundle.color_bgr.copy(), 1)
-            depth = cv2.flip(bundle.depth_mm.copy(), 1)
-            h, w, _ = frame.shape
+            top_frame = cv2.flip(top_frame_raw.copy(), 1)
+            side_frame = cv2.flip(side_bundle.color_bgr.copy(), 1)
+            side_depth = cv2.flip(side_bundle.depth_mm.copy(), 1)
 
-            targets = compute_targets(w, h)
-            prop.set_dock((float(w * 0.12), float(h * 0.22)))
+            top_h, top_w, _ = top_frame.shape
+            side_h, side_w, _ = side_frame.shape
 
-            top_result = hands.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            targets = compute_targets(top_w, top_h)
+            prop.set_dock((float(side_w * 0.12), float(side_h * 0.22)))
 
+            # Top camera: 3x3 grid test only.
+            top_result = hands_top.process(cv2.cvtColor(top_frame, cv2.COLOR_BGR2RGB))
             hover_key = 0
-            pinch_dist: Optional[float] = None
-            hand_mid: Optional[Tuple[int, int]] = None
-
+            top_mid: Optional[Tuple[int, int]] = None
             if top_result.multi_hand_landmarks:
-                hand_lms = top_result.multi_hand_landmarks[0]
-                thumb_pt, index_pt, mid_pt, pinch_dist = get_thumb_index_data(hand_lms, w, h)
-
-                if smooth_mid is None:
-                    smooth_mid = [float(mid_pt[0]), float(mid_pt[1])]
+                top_lms = top_result.multi_hand_landmarks[0]
+                top_thumb, top_index, top_mid_raw, _ = get_thumb_index_data(top_lms, top_w, top_h)
+                if smooth_top_mid is None:
+                    smooth_top_mid = [float(top_mid_raw[0]), float(top_mid_raw[1])]
                 else:
-                    smooth_mid[0] = (1.0 - cfg.smooth_alpha) * smooth_mid[0] + cfg.smooth_alpha * mid_pt[0]
-                    smooth_mid[1] = (1.0 - cfg.smooth_alpha) * smooth_mid[1] + cfg.smooth_alpha * mid_pt[1]
+                    smooth_top_mid[0] = (1.0 - cfg.smooth_alpha) * smooth_top_mid[0] + cfg.smooth_alpha * top_mid_raw[0]
+                    smooth_top_mid[1] = (1.0 - cfg.smooth_alpha) * smooth_top_mid[1] + cfg.smooth_alpha * top_mid_raw[1]
+                top_mid = (int(smooth_top_mid[0]), int(smooth_top_mid[1]))
+                hover_key = hit_test(top_mid[0], top_mid[1], targets)
 
-                hand_mid = (int(smooth_mid[0]), int(smooth_mid[1]))
-                hover_key = hit_test(hand_mid[0], hand_mid[1], targets)
-
-                cv2.circle(frame, thumb_pt, 8, (255, 200, 0), -1)
-                cv2.circle(frame, index_pt, 8, (0, 255, 0), -1)
-                cv2.circle(frame, hand_mid, 6, (255, 255, 255), -1)
-                cv2.line(frame, thumb_pt, index_pt, (255, 255, 0), 2)
+                cv2.circle(top_frame, top_thumb, 8, (255, 200, 0), -1)
+                cv2.circle(top_frame, top_index, 8, (0, 255, 0), -1)
+                cv2.circle(top_frame, top_mid, 6, (255, 255, 255), -1)
+                cv2.line(top_frame, top_thumb, top_index, (255, 255, 0), 2)
             else:
-                smooth_mid = None
+                smooth_top_mid = None
 
-            depth_at_mid = sample_depth_5x5(depth, hand_mid) if hand_mid else None
+            # Side Astra: pinch/depth gate/state/BLE/prop.
+            side_result = hands_side.process(cv2.cvtColor(side_frame, cv2.COLOR_BGR2RGB))
+            side_pinch_dist: Optional[float] = None
+            side_mid: Optional[Tuple[int, int]] = None
+            if side_result.multi_hand_landmarks:
+                side_lms = side_result.multi_hand_landmarks[0]
+                side_thumb, side_index, side_mid_raw, side_pinch_dist = get_thumb_index_data(side_lms, side_w, side_h)
+
+                if smooth_side_mid is None:
+                    smooth_side_mid = [float(side_mid_raw[0]), float(side_mid_raw[1])]
+                else:
+                    smooth_side_mid[0] = (1.0 - cfg.smooth_alpha) * smooth_side_mid[0] + cfg.smooth_alpha * side_mid_raw[0]
+                    smooth_side_mid[1] = (1.0 - cfg.smooth_alpha) * smooth_side_mid[1] + cfg.smooth_alpha * side_mid_raw[1]
+                side_mid = (int(smooth_side_mid[0]), int(smooth_side_mid[1]))
+
+                cv2.circle(side_frame, side_thumb, 8, (255, 200, 0), -1)
+                cv2.circle(side_frame, side_index, 8, (0, 255, 0), -1)
+                cv2.circle(side_frame, side_mid, 6, (255, 255, 255), -1)
+                cv2.line(side_frame, side_thumb, side_index, (255, 255, 0), 2)
+            else:
+                smooth_side_mid = None
+
+            side_depth_at_mid = sample_depth_5x5(side_depth, side_mid) if side_mid else None
             out = update_grab_state(
                 ctx=grab_ctx,
-                pinch_dist=pinch_dist,
-                depth_at_mid_mm=depth_at_mid,
+                pinch_dist=side_pinch_dist,
+                depth_at_mid_mm=side_depth_at_mid,
                 hover_key=hover_key,
                 pinch_enter=cfg.pinch_enter,
                 pinch_exit=cfg.pinch_exit,
@@ -159,30 +199,50 @@ def main() -> None:
             grab_ctx = out.context
 
             ble.set_target(out.trigger_on, out.target_key)
+            prop.update(hand_xy=side_mid, grab_active=out.trigger_on, now_ms=side_bundle.timestamp_ms)
 
-            prop.update(hand_xy=hand_mid, grab_active=out.trigger_on, now_ms=bundle.timestamp_ms)
+            draw_panel(top_frame, targets, hover_key=grab_ctx.hover_key, grab_key=grab_ctx.grab_key)
+            prop.draw(side_frame)
 
-            draw_panel(frame, targets, hover_key=grab_ctx.hover_key, grab_key=grab_ctx.grab_key)
-            prop.draw(frame)
+            side_error = getattr(side_cam, "get_error", lambda: None)()
+            if side_error:
+                cv2.putText(side_frame, side_error, (14, 136), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 0, 255), 2)
 
-            cam_error = getattr(cam, "get_error", lambda: None)()
-            if cam_error:
-                cv2.putText(frame, cam_error, (14, 138), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 0, 255), 2)
-
-            ble_color = (0, 255, 0) if ble.is_connected else (0, 0, 255)
-            cv2.putText(frame, f"BLE: {ble.status_msg}", (14, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.6, ble_color, 2)
+            # Top window overlay (3x3 test only)
             cv2.putText(
-                frame,
-                f"State:{grab_ctx.state.value} Hover:{grab_ctx.hover_key if grab_ctx.hover_key > 0 else '-'} Grab:{grab_ctx.grab_key if grab_ctx.grab_key > 0 else '-'}",
-                (14, 52),
+                top_frame,
+                f"Top Grid Test Hover:{hover_key if hover_key > 0 else '-'}",
+                (14, 26),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
+                0.62,
                 (255, 255, 255),
                 2,
             )
             cv2.putText(
-                frame,
-                f"PinchDist:{pinch_dist:.3f}" if pinch_dist is not None else "PinchDist:-",
+                top_frame,
+                f"GrabKey:{grab_ctx.grab_key if grab_ctx.grab_key > 0 else '-'}",
+                (14, 52),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.58,
+                (0, 0, 255) if grab_ctx.grab_key > 0 else (0, 255, 255),
+                2,
+            )
+
+            # Side window overlay (decision plane)
+            ble_color = (0, 255, 0) if ble.is_connected else (0, 0, 255)
+            cv2.putText(side_frame, f"BLE: {ble.status_msg}", (14, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.6, ble_color, 2)
+            cv2.putText(
+                side_frame,
+                f"State:{grab_ctx.state.value} Target:{grab_ctx.grab_key if grab_ctx.grab_key > 0 else '-'}",
+                (14, 52),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.58,
+                (255, 255, 255),
+                2,
+            )
+            cv2.putText(
+                side_frame,
+                f"SidePinch:{side_pinch_dist:.3f}" if side_pinch_dist is not None else "SidePinch:-",
                 (14, 78),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.55,
@@ -190,25 +250,26 @@ def main() -> None:
                 2,
             )
             cv2.putText(
-                frame,
-                f"Depth(mm):{out.depth_mm if out.depth_mm is not None else '-'} Gate:{'ON' if grab_ctx.depth_gate_state else 'OFF'}",
-                (14, 136 + 28),
+                side_frame,
+                f"SideDepth(mm):{out.depth_mm if out.depth_mm is not None else '-'} Gate:{'ON' if grab_ctx.depth_gate_state else 'OFF'}",
+                (14, 104),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.55,
                 (0, 255, 255) if grab_ctx.depth_gate_state else (255, 255, 255),
                 2,
             )
             cv2.putText(
-                frame,
+                side_frame,
                 "Keys: q=quit, v=toggle ball/cube",
-                (14, h - 14),
+                (14, side_h - 14),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.52,
                 (255, 255, 255),
                 2,
             )
 
-            cv2.imshow("Astra Top RGB+Depth - Single Cam Grab Demo", frame)
+            cv2.imshow("Top Camera - 3x3 Grid Test", top_frame)
+            cv2.imshow("Side Astra - Grab + BLE + Virtual Prop", side_frame)
 
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
@@ -216,15 +277,16 @@ def main() -> None:
             if key == ord("v"):
                 prop.toggle_type()
 
-            if cam_error:
-                # Camera thread stopped due to fatal stream mismatch/error.
+            if side_error:
                 time.sleep(0.5)
                 break
 
     finally:
         ble.stop()
-        cam.stop()
-        hands.close()
+        side_cam.stop()
+        top_cap.release()
+        hands_top.close()
+        hands_side.close()
         cv2.destroyAllWindows()
         print("[INFO] Exit.")
 

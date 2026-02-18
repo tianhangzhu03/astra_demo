@@ -1,8 +1,10 @@
-# Astra Pro Plus 单摄像头抓取 Demo（Windows）
+# Astra Pro Plus 侧视 + 手机顶视 Demo（Windows）
 
 本目录是**独立实现**，不会改动你原来的双摄 Demo。
 
-- 目标设备：Astra Pro Plus（顶视单摄，RGB+Depth）
+- 目标设备：
+  - 侧视：Astra Pro Plus（RGB+Depth，负责抓取判定/BLE/虚拟物体）
+  - 顶视：手机摄像头（仅用于 3x3 九宫格测试）
 - 目标系统：Windows 10/11 x64
 - 抓取逻辑：捏合阈值 + 深度阈值 + 防抖状态机（IDLE->ARMED->GRAB）
 - 交互增强：虚拟小球/小方块（`V` 切换）
@@ -60,10 +62,11 @@ python -c "from openni import openni2; print('openni2 ok')"
 
 如果这条命令失败，先不要运行 Demo，先修复 OpenNI 安装与 PATH。
 
-### 步骤 5：配置 BLE（可选）
+### 步骤 5：配置参数（BLE + 顶视相机）
 
 编辑 `astra_demo/config.py`：
 
+- `top_camera_id`（手机摄像头 ID）
 - `ble_enabled = True/False`
 - `ble_mac_address`
 - `ble_uuid`
