@@ -30,6 +30,8 @@ class AstraDemoConfig:
     depth_enter_mm: int = 760
     # 深度退出阈值（mm，应大于 enter）；调大更不容易退出
     depth_exit_mm: int = 860
+    # 是否启用深度门限参与抓取判定；Demo建议关，仅作可视化参考
+    use_depth_gate: bool = False
 
     # 进入状态所需连续帧数；调大更稳但延迟增加
     enter_frames: int = 2
