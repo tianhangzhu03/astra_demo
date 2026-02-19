@@ -113,6 +113,17 @@ def open_uvc_camera(preferred_id: int, width: int, height: int, label: str):
     raise RuntimeError(f"{label} open failed. tried ids={tried}")
 
 
+def map_point_to_full_res(pt: tuple[int, int], scale: float, full_w: int, full_h: int) -> tuple[int, int]:
+    if scale >= 0.999:
+        x, y = pt
+    else:
+        x = int(pt[0] / max(scale, 1e-6))
+        y = int(pt[1] / max(scale, 1e-6))
+    x = max(0, min(full_w - 1, x))
+    y = max(0, min(full_h - 1, y))
+    return (x, y)
+
+
 def main() -> None:
     if platform != "win32":
         print("[WARN] This Astra demo is intended for Windows + Astra SDK.")
@@ -154,6 +165,7 @@ def main() -> None:
     smooth_side_mid: Optional[list[float]] = None
     checked_alignment = False
     last_toggle_ms = 0
+    prop_initialized = False
 
     print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit, 'v' to toggle prop type.")
 
@@ -189,7 +201,16 @@ def main() -> None:
                 panel_h_ratio=cfg.grid_h_ratio,
                 panel_y_ratio=cfg.grid_y_ratio,
             )
-            prop.set_dock((float(side_w * 0.12), float(side_h * 0.22)))
+            if not prop_initialized:
+                init_key = cfg.prop_init_grid_key if 1 <= cfg.prop_init_grid_key <= 9 else 5
+                x1, y1, x2, y2 = targets[init_key]
+                top_cx = (x1 + x2) // 2
+                top_cy = (y1 + y2) // 2
+                ratio_x = top_cx / float(max(1, top_w - 1))
+                ratio_y = top_cy / float(max(1, top_h - 1))
+                init_side_xy = (ratio_x * (side_w - 1), ratio_y * (side_h - 1))
+                prop.initialize_at(init_side_xy, visible=cfg.prop_idle_visible)
+                prop_initialized = True
 
             # Top camera: 3x3 grid test only.
             top_detect_frame = top_frame
@@ -204,7 +225,9 @@ def main() -> None:
             top_mid: Optional[Tuple[int, int]] = None
             if top_result.multi_hand_landmarks:
                 top_lms = top_result.multi_hand_landmarks[0]
-                _, _, top_mid_raw, _ = get_thumb_index_data(top_lms, top_w, top_h)
+                detect_h_t, detect_w_t = top_detect_frame.shape[:2]
+                _, _, top_mid_raw, _ = get_thumb_index_data(top_lms, detect_w_t, detect_h_t)
+                top_mid_raw = map_point_to_full_res(top_mid_raw, cfg.hand_process_scale, top_w, top_h)
                 if smooth_top_mid is None:
                     smooth_top_mid = [float(top_mid_raw[0]), float(top_mid_raw[1])]
                 else:
@@ -228,7 +251,11 @@ def main() -> None:
             side_mid: Optional[Tuple[int, int]] = None
             if side_result.multi_hand_landmarks:
                 side_lms = side_result.multi_hand_landmarks[0]
-                side_thumb, side_index, side_mid_raw, side_pinch_dist = get_thumb_index_data(side_lms, side_w, side_h)
+                detect_h_s, detect_w_s = side_detect_frame.shape[:2]
+                side_thumb, side_index, side_mid_raw, side_pinch_dist = get_thumb_index_data(side_lms, detect_w_s, detect_h_s)
+                side_thumb = map_point_to_full_res(side_thumb, cfg.hand_process_scale, side_w, side_h)
+                side_index = map_point_to_full_res(side_index, cfg.hand_process_scale, side_w, side_h)
+                side_mid_raw = map_point_to_full_res(side_mid_raw, cfg.hand_process_scale, side_w, side_h)
 
                 if smooth_side_mid is None:
                     smooth_side_mid = [float(side_mid_raw[0]), float(side_mid_raw[1])]
@@ -260,7 +287,12 @@ def main() -> None:
             grab_ctx = out.context
 
             ble.set_target(out.trigger_on, out.target_key)
-            prop.update(hand_xy=side_mid, grab_active=out.trigger_on, now_ms=side_bundle.timestamp_ms)
+            prop.update(
+                hand_xy=side_mid,
+                grab_active=out.trigger_on,
+                now_ms=side_bundle.timestamp_ms,
+                keep_idle_visible=cfg.prop_idle_visible,
+            )
 
             # Keep top view clean: grid test only, do not visualize grab state.
             draw_panel(top_frame, targets, hover_key=hover_key, grab_key=0)

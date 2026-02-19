@@ -15,13 +15,14 @@ class VirtualPropType(str, Enum):
 
 class VirtualPropState(str, Enum):
     HIDDEN = "HIDDEN"
+    IDLE = "IDLE"
     HELD = "HELD"
 
 
 @dataclass
 class VirtualProp:
     prop_type: VirtualPropType = VirtualPropType.BALL
-    state: VirtualPropState = VirtualPropState.HIDDEN
+    state: VirtualPropState = VirtualPropState.IDLE
     dock_xy: Tuple[float, float] = (120.0, 120.0)
     pos_xy: Tuple[float, float] = (120.0, 120.0)
 
@@ -40,10 +41,13 @@ class VirtualProp:
     def set_dock(self, xy: Tuple[float, float]) -> None:
         self.dock_xy = xy
 
-    def update(self, hand_xy: Optional[Tuple[int, int]], grab_active: bool, now_ms: int) -> None:
-        # Demo behavior: show only while grabbing. Release => hide immediately.
+    def initialize_at(self, xy: Tuple[float, float], visible: bool = True) -> None:
+        self.pos_xy = (float(xy[0]), float(xy[1]))
+        self.state = VirtualPropState.IDLE if visible else VirtualPropState.HIDDEN
+
+    def update(self, hand_xy: Optional[Tuple[int, int]], grab_active: bool, now_ms: int, keep_idle_visible: bool = True) -> None:
         if (not grab_active) or hand_xy is None:
-            self.state = VirtualPropState.HIDDEN
+            self.state = VirtualPropState.IDLE if keep_idle_visible else VirtualPropState.HIDDEN
             return
 
         self.state = VirtualPropState.HELD
