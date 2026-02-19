@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass
 class AstraDemoConfig:
-    top_camera_id: int = 0
+    top_camera_id: int = 2
     side_color_camera_id: int = 1
 
     camera_fps: int = 30
