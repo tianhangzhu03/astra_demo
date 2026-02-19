@@ -3,7 +3,7 @@
 本目录是**独立实现**，不会改动你原来的双摄 Demo。
 
 - 目标设备：
-  - 侧视：Astra Pro Plus（RGB+Depth，负责抓取判定/BLE/虚拟物体）
+  - 侧视：Astra Pro Plus（Depth 走 OpenNI）+ 侧视 UVC 彩色相机（负责手势图像）
   - 顶视：手机摄像头（仅用于 3x3 九宫格测试）
 - 目标系统：Windows 10/11 x64
 - 抓取逻辑：捏合阈值 + 深度阈值 + 防抖状态机（IDLE->ARMED->GRAB）
@@ -67,6 +67,7 @@ python -c "from openni import openni2; print('openni2 ok')"
 编辑 `astra_demo/config.py`：
 
 - `top_camera_id`（手机摄像头 ID）
+- `side_color_camera_id`（侧视 UVC 彩色相机 ID）
 - `ble_enabled = True/False`
 - `ble_mac_address`
 - `ble_uuid`

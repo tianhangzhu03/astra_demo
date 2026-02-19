@@ -72,7 +72,7 @@ def draw_panel(frame, targets, hover_key: int, grab_key: int) -> None:
     cv2.addWeighted(overlay, 0.22, frame, 0.78, 0, frame)
 
 
-def open_top_camera(preferred_id: int, width: int, height: int):
+def open_uvc_camera(preferred_id: int, width: int, height: int, label: str):
     tried = []
     for cam_id in [preferred_id, 0, 1, 2, 3, 4]:
         if cam_id in tried:
@@ -82,10 +82,10 @@ def open_top_camera(preferred_id: int, width: int, height: int):
         if cap.isOpened():
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-            print(f"[CAM] top(phone) use id={cam_id}")
+            print(f"[CAM] {label} use id={cam_id}")
             return cap
         cap.release()
-    raise RuntimeError(f"Top camera open failed. tried ids={tried}")
+    raise RuntimeError(f"{label} open failed. tried ids={tried}")
 
 
 def main() -> None:
@@ -105,7 +105,8 @@ def main() -> None:
     )
     ble.start()
 
-    top_cap = open_top_camera(cfg.top_camera_id, cfg.frame_width, cfg.frame_height)
+    top_cap = open_uvc_camera(cfg.top_camera_id, cfg.frame_width, cfg.frame_height, "top(phone)")
+    side_cap = open_uvc_camera(cfg.side_color_camera_id, cfg.frame_width, cfg.frame_height, "side(color-uvc)")
     side_cam = create_camera_source(fps=cfg.camera_fps)
     side_cam.start()
 
@@ -118,20 +119,31 @@ def main() -> None:
 
     smooth_top_mid: Optional[list[float]] = None
     smooth_side_mid: Optional[list[float]] = None
+    checked_alignment = False
 
     print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit, 'v' to toggle prop type.")
 
     try:
         while True:
             ok_top, top_frame_raw = top_cap.read()
+            ok_side, side_color_raw = side_cap.read()
             side_bundle = side_cam.read()
-            if not ok_top or side_bundle is None:
+            if not ok_top or not ok_side or side_bundle is None:
                 time.sleep(0.01)
                 continue
 
             top_frame = cv2.flip(top_frame_raw.copy(), 1)
-            side_frame = cv2.flip(side_bundle.color_bgr.copy(), 1)
+            side_frame = cv2.flip(side_color_raw.copy(), 1)
             side_depth = cv2.flip(side_bundle.depth_mm.copy(), 1)
+
+            if not checked_alignment:
+                if side_frame.shape[:2] != side_depth.shape[:2]:
+                    raise RuntimeError(
+                        "Side RGB(UVC)/Depth(OpenNI) size mismatch: "
+                        f"rgb={side_frame.shape[:2]} depth={side_depth.shape[:2]}. "
+                        "Set side UVC camera resolution to match Astra depth stream."
+                    )
+                checked_alignment = True
 
             top_h, top_w, _ = top_frame.shape
             side_h, side_w, _ = side_frame.shape
@@ -285,6 +297,7 @@ def main() -> None:
         ble.stop()
         side_cam.stop()
         top_cap.release()
+        side_cap.release()
         hands_top.close()
         hands_side.close()
         cv2.destroyAllWindows()

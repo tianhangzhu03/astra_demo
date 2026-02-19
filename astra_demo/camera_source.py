@@ -5,13 +5,12 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
-import cv2
 import numpy as np
 
 
 @dataclass
 class FrameBundle:
-    color_bgr: np.ndarray
+    color_bgr: Optional[np.ndarray]
     depth_mm: np.ndarray
     timestamp_ms: int
 
@@ -41,7 +40,6 @@ class AstraOpenNICameraSource(CameraSource):
 
         self._openni2 = None
         self._device = None
-        self._color_stream = None
         self._depth_stream = None
 
     def start(self) -> None:
@@ -57,25 +55,18 @@ class AstraOpenNICameraSource(CameraSource):
         self._openni2.initialize()
         self._device = self._openni2.Device.open_any()
 
-        self._color_stream = self._device.create_color_stream()
         self._depth_stream = self._device.create_depth_stream()
-
-        self._color_stream.start()
+        if self._depth_stream is None:
+            raise RuntimeError("Astra depth stream is unavailable.")
         self._depth_stream.start()
 
-        # Validate RGB/depth mapping shape once at startup.
-        color = self._read_color_frame()
+        # Validate depth stream once at startup.
         depth = self._read_depth_frame()
-        if color is None or depth is None:
-            raise RuntimeError("Failed to read initial frames from Astra streams.")
-        if color.shape[:2] != depth.shape[:2]:
-            raise RuntimeError(
-                f"RGB/Depth size mismatch: rgb={color.shape[:2]} depth={depth.shape[:2]}. "
-                "Please configure Astra SDK to provide aligned streams."
-            )
+        if depth is None:
+            raise RuntimeError("Failed to read initial depth frame from Astra stream.")
 
         self._latest = FrameBundle(
-            color_bgr=color,
+            color_bgr=None,
             depth_mm=depth,
             timestamp_ms=int(time.time() * 1000),
         )
@@ -83,20 +74,6 @@ class AstraOpenNICameraSource(CameraSource):
         self._running = True
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
-
-    def _read_color_frame(self) -> Optional[np.ndarray]:
-        if self._color_stream is None:
-            return None
-        frame = self._color_stream.read_frame()
-        raw = frame.get_buffer_as_uint8()
-        arr = np.frombuffer(raw, dtype=np.uint8)
-        h = frame.height
-        w = frame.width
-        if arr.size != h * w * 3:
-            return None
-        # Most OpenNI color buffers are RGB; convert to BGR for OpenCV.
-        rgb = arr.reshape(h, w, 3)
-        return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
     def _read_depth_frame(self) -> Optional[np.ndarray]:
         if self._depth_stream is None:
@@ -114,21 +91,13 @@ class AstraOpenNICameraSource(CameraSource):
         frame_interval = 1.0 / max(1, self.fps)
         while self._running:
             try:
-                color = self._read_color_frame()
                 depth = self._read_depth_frame()
-                if color is None or depth is None:
+                if depth is None:
                     continue
-
-                if color.shape[:2] != depth.shape[:2]:
-                    self._error = (
-                        f"Runtime RGB/Depth mismatch: rgb={color.shape[:2]} depth={depth.shape[:2]}"
-                    )
-                    self._running = False
-                    break
 
                 with self._lock:
                     self._latest = FrameBundle(
-                        color_bgr=color,
+                        color_bgr=None,
                         depth_mm=depth,
                         timestamp_ms=int(time.time() * 1000),
                     )
@@ -151,11 +120,6 @@ class AstraOpenNICameraSource(CameraSource):
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)
 
-        if self._color_stream is not None:
-            try:
-                self._color_stream.stop()
-            except Exception:
-                pass
         if self._depth_stream is not None:
             try:
                 self._depth_stream.stop()
