@@ -107,12 +107,30 @@ python -m astra_demo.main
 - 捏合：`pinch_enter` / `pinch_exit`
 - 深度：`depth_enter_mm` / `depth_exit_mm`
 - 防抖：`enter_frames` / `exit_frames`
+- 九宫格：`grid_w_ratio` / `grid_h_ratio` / `grid_y_ratio`
+- 深度预览范围：`depth_vis_min_mm` / `depth_vis_max_mm`
+- 虚拟物体：`prop_size_follow` / `prop_size_held` / `prop_follow_alpha`
 
-说明：
+判定逻辑（侧视）：
+
+1. 先算捏合距离 `pinch_dist`  
+2. 再取侧视中点附近 `5x5` 深度中值 `depth_mm`  
+3. 用迟滞阈值更新两个门：
+   - `top_pinch_state`：进入用 `pinch_enter`，退出用 `pinch_exit`
+   - `depth_gate_state`：进入用 `depth_enter_mm`，退出用 `depth_exit_mm`
+4. 状态机：
+   - `IDLE -> ARMED`：捏合成立且顶部九宫格命中连续 `enter_frames`
+   - `ARMED -> GRAB`：深度门成立连续 `enter_frames`
+   - `GRAB -> IDLE`：捏合或深度释放连续 `exit_frames`
+5. `GRAB` 时触发 BLE 上升沿，释放时触发下降沿
+
+调参建议（按顺序）：
 
 - 当前深度门逻辑是“距离越近 mm 越小”，满足 `depth <= threshold` 才认为通过。
-- 误触发多：提高 `enter_frames`，或减小 `depth_enter_mm`。
-- 释放不及时：减小 `exit_frames`，或减小 `depth_exit_mm`。
+- 误触发多：先提高 `enter_frames`，再减小 `depth_enter_mm`。
+- 释放不及时：先减小 `exit_frames`，再减小 `depth_exit_mm`。
+- 捏合漏检：适当增大 `pinch_enter`/`pinch_exit`（保持 `enter < exit`）。
+- 深度图过黑/过白：调整 `depth_vis_min_mm`/`depth_vis_max_mm`，让手部区域在彩色预览里有明显对比。
 
 ---
 

@@ -26,11 +26,11 @@ def get_thumb_index_data(hand_lms, w: int, h: int) -> tuple[tuple[int, int], tup
     return (tx, ty), (ix, iy), (mx, my), dist
 
 
-def compute_targets(w: int, h: int) -> dict[int, tuple[int, int, int, int]]:
-    panel_w = int(w * 0.60)
-    panel_h = int(h * 0.60)
+def compute_targets(w: int, h: int, panel_w_ratio: float, panel_h_ratio: float, panel_y_ratio: float) -> dict[int, tuple[int, int, int, int]]:
+    panel_w = int(w * panel_w_ratio)
+    panel_h = int(h * panel_h_ratio)
     sx = (w - panel_w) // 2
-    sy = int(h * 0.18)
+    sy = int(h * panel_y_ratio)
     cw = panel_w // 3
     ch = panel_h // 3
 
@@ -70,6 +70,21 @@ def draw_panel(frame, targets, hover_key: int, grab_key: int) -> None:
         cv2.putText(frame, str(key), (cx - 10, cy + 10), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
 
     cv2.addWeighted(overlay, 0.22, frame, 0.78, 0, frame)
+
+
+def build_depth_preview(depth_mm, depth_min_mm: int, depth_max_mm: int, marker_xy: Optional[Tuple[int, int]]):
+    clipped = depth_mm.copy()
+    clipped[clipped <= 0] = depth_max_mm
+    clipped = clipped.astype("float32")
+    clipped = (clipped - depth_min_mm) / float(max(1, depth_max_mm - depth_min_mm))
+    clipped = clipped.clip(0.0, 1.0)
+    gray = (255.0 * (1.0 - clipped)).astype("uint8")
+    vis = cv2.applyColorMap(gray, cv2.COLORMAP_TURBO)
+
+    if marker_xy is not None:
+        cv2.circle(vis, marker_xy, 6, (255, 255, 255), -1)
+        cv2.circle(vis, marker_xy, 10, (0, 0, 0), 2)
+    return vis
 
 
 def open_uvc_camera(preferred_id: int, width: int, height: int, label: str):
@@ -116,10 +131,14 @@ def main() -> None:
 
     grab_ctx = GrabContext()
     prop = VirtualProp(release_return_ms=cfg.release_return_ms)
+    prop.size_follow = cfg.prop_size_follow
+    prop.size_held = cfg.prop_size_held
+    prop.follow_alpha = cfg.prop_follow_alpha
 
     smooth_top_mid: Optional[list[float]] = None
     smooth_side_mid: Optional[list[float]] = None
     checked_alignment = False
+    last_toggle_ms = 0
 
     print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit, 'v' to toggle prop type.")
 
@@ -148,7 +167,13 @@ def main() -> None:
             top_h, top_w, _ = top_frame.shape
             side_h, side_w, _ = side_frame.shape
 
-            targets = compute_targets(top_w, top_h)
+            targets = compute_targets(
+                top_w,
+                top_h,
+                panel_w_ratio=cfg.grid_w_ratio,
+                panel_h_ratio=cfg.grid_h_ratio,
+                panel_y_ratio=cfg.grid_y_ratio,
+            )
             prop.set_dock((float(side_w * 0.12), float(side_h * 0.22)))
 
             # Top camera: 3x3 grid test only.
@@ -157,7 +182,7 @@ def main() -> None:
             top_mid: Optional[Tuple[int, int]] = None
             if top_result.multi_hand_landmarks:
                 top_lms = top_result.multi_hand_landmarks[0]
-                top_thumb, top_index, top_mid_raw, _ = get_thumb_index_data(top_lms, top_w, top_h)
+                _, _, top_mid_raw, _ = get_thumb_index_data(top_lms, top_w, top_h)
                 if smooth_top_mid is None:
                     smooth_top_mid = [float(top_mid_raw[0]), float(top_mid_raw[1])]
                 else:
@@ -165,11 +190,6 @@ def main() -> None:
                     smooth_top_mid[1] = (1.0 - cfg.smooth_alpha) * smooth_top_mid[1] + cfg.smooth_alpha * top_mid_raw[1]
                 top_mid = (int(smooth_top_mid[0]), int(smooth_top_mid[1]))
                 hover_key = hit_test(top_mid[0], top_mid[1], targets)
-
-                cv2.circle(top_frame, top_thumb, 8, (255, 200, 0), -1)
-                cv2.circle(top_frame, top_index, 8, (0, 255, 0), -1)
-                cv2.circle(top_frame, top_mid, 6, (255, 255, 255), -1)
-                cv2.line(top_frame, top_thumb, top_index, (255, 255, 0), 2)
             else:
                 smooth_top_mid = None
 
@@ -216,29 +236,29 @@ def main() -> None:
             draw_panel(top_frame, targets, hover_key=grab_ctx.hover_key, grab_key=grab_ctx.grab_key)
             prop.draw(side_frame)
 
-            side_error = getattr(side_cam, "get_error", lambda: None)()
-            if side_error:
-                cv2.putText(side_frame, side_error, (14, 136), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 0, 255), 2)
-
-            # Top window overlay (3x3 test only)
+            # Depth preview (colorized) for easier on-site tuning.
+            depth_vis = build_depth_preview(
+                side_depth,
+                depth_min_mm=cfg.depth_vis_min_mm,
+                depth_max_mm=cfg.depth_vis_max_mm,
+                marker_xy=side_mid,
+            )
+            depth_vis_small = cv2.resize(depth_vis, (220, 165), interpolation=cv2.INTER_NEAREST)
+            side_frame[8:173, side_w - 228:side_w - 8] = depth_vis_small
+            cv2.rectangle(side_frame, (side_w - 228, 8), (side_w - 8, 173), (255, 255, 255), 1)
             cv2.putText(
-                top_frame,
-                f"Top Grid Test Hover:{hover_key if hover_key > 0 else '-'}",
-                (14, 26),
+                side_frame,
+                "Depth Preview",
+                (side_w - 220, 26),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.62,
+                0.55,
                 (255, 255, 255),
                 2,
             )
-            cv2.putText(
-                top_frame,
-                f"GrabKey:{grab_ctx.grab_key if grab_ctx.grab_key > 0 else '-'}",
-                (14, 52),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.58,
-                (0, 0, 255) if grab_ctx.grab_key > 0 else (0, 255, 255),
-                2,
-            )
+
+            side_error = getattr(side_cam, "get_error", lambda: None)()
+            if side_error:
+                cv2.putText(side_frame, side_error, (14, 136), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 0, 255), 2)
 
             # Side window overlay (decision plane)
             ble_color = (0, 255, 0) if ble.is_connected else (0, 0, 255)
@@ -287,7 +307,10 @@ def main() -> None:
             if key == ord("q"):
                 break
             if key == ord("v"):
-                prop.toggle_type()
+                now_ms = int(time.time() * 1000)
+                if now_ms - last_toggle_ms >= cfg.prop_toggle_cooldown_ms:
+                    prop.toggle_type()
+                    last_toggle_ms = now_ms
 
             if side_error:
                 time.sleep(0.5)

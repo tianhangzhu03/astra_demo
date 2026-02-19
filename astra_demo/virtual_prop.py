@@ -28,6 +28,9 @@ class VirtualProp:
 
     release_return_ms: int = 200
     follow_alpha: float = 0.35
+    size_follow: int = 22
+    size_held: int = 28
+    follow_fill_alpha: float = 0.45
 
     _release_start_ms: int = 0
     _release_from_xy: Tuple[float, float] = (120.0, 120.0)
@@ -85,7 +88,7 @@ class VirtualProp:
         held = self.state == VirtualPropState.HELD
         follow = self.state == VirtualPropState.FOLLOW
 
-        size = 28 if held else 22
+        size = self.size_held if held else self.size_follow
         color = (30, 80, 245) if held else (40, 220, 245)
 
         # Light shadow to improve depth cue in demo.
@@ -95,7 +98,7 @@ class VirtualProp:
             if follow:
                 overlay = frame.copy()
                 cv2.circle(overlay, (x, y), size, color, -1)
-                cv2.addWeighted(overlay, 0.45, frame, 0.55, 0, frame)
+                cv2.addWeighted(overlay, self.follow_fill_alpha, frame, 1.0 - self.follow_fill_alpha, 0, frame)
             else:
                 cv2.circle(frame, (x, y), size, color, -1)
         else:
@@ -104,7 +107,7 @@ class VirtualProp:
             if follow:
                 overlay = frame.copy()
                 cv2.rectangle(overlay, p1, p2, color, -1)
-                cv2.addWeighted(overlay, 0.45, frame, 0.55, 0, frame)
+                cv2.addWeighted(overlay, self.follow_fill_alpha, frame, 1.0 - self.follow_fill_alpha, 0, frame)
             else:
                 cv2.rectangle(frame, p1, p2, color, -1)
 
