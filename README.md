@@ -74,6 +74,17 @@ python -c "from openni import openni2; print('openni2 ok')"
 
 调试视觉流程时建议先设 `ble_enabled=False`。
 
+可先运行相机探测脚本辅助确定 ID：
+
+```powershell
+python -m astra_demo.camera_id_probe
+```
+
+操作说明：
+- 终端会打印可用 ID 列表
+- 预览窗口中按 `0-9` 切换相机
+- 按 `q` 退出
+
 ### 步骤 6：运行
 
 在仓库根目录执行：
