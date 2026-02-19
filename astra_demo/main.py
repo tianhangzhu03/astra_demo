@@ -113,6 +113,17 @@ def open_uvc_camera(preferred_id: int, width: int, height: int, label: str):
     raise RuntimeError(f"{label} open failed. tried ids={tried}")
 
 
+def map_point_to_full_res(pt: tuple[int, int], scale: float, full_w: int, full_h: int) -> tuple[int, int]:
+    if scale >= 0.999:
+        x, y = pt
+    else:
+        x = int(pt[0] / max(scale, 1e-6))
+        y = int(pt[1] / max(scale, 1e-6))
+    x = max(0, min(full_w - 1, x))
+    y = max(0, min(full_h - 1, y))
+    return (x, y)
+
+
 def main() -> None:
     if platform != "win32":
         print("[WARN] This Astra demo is intended for Windows + Astra SDK.")
@@ -214,7 +225,9 @@ def main() -> None:
             top_mid: Optional[Tuple[int, int]] = None
             if top_result.multi_hand_landmarks:
                 top_lms = top_result.multi_hand_landmarks[0]
-                _, _, top_mid_raw, _ = get_thumb_index_data(top_lms, top_w, top_h)
+                detect_h_t, detect_w_t = top_detect_frame.shape[:2]
+                _, _, top_mid_raw, _ = get_thumb_index_data(top_lms, detect_w_t, detect_h_t)
+                top_mid_raw = map_point_to_full_res(top_mid_raw, cfg.hand_process_scale, top_w, top_h)
                 if smooth_top_mid is None:
                     smooth_top_mid = [float(top_mid_raw[0]), float(top_mid_raw[1])]
                 else:
@@ -238,7 +251,11 @@ def main() -> None:
             side_mid: Optional[Tuple[int, int]] = None
             if side_result.multi_hand_landmarks:
                 side_lms = side_result.multi_hand_landmarks[0]
-                side_thumb, side_index, side_mid_raw, side_pinch_dist = get_thumb_index_data(side_lms, side_w, side_h)
+                detect_h_s, detect_w_s = side_detect_frame.shape[:2]
+                side_thumb, side_index, side_mid_raw, side_pinch_dist = get_thumb_index_data(side_lms, detect_w_s, detect_h_s)
+                side_thumb = map_point_to_full_res(side_thumb, cfg.hand_process_scale, side_w, side_h)
+                side_index = map_point_to_full_res(side_index, cfg.hand_process_scale, side_w, side_h)
+                side_mid_raw = map_point_to_full_res(side_mid_raw, cfg.hand_process_scale, side_w, side_h)
 
                 if smooth_side_mid is None:
                     smooth_side_mid = [float(side_mid_raw[0]), float(side_mid_raw[1])]
@@ -255,11 +272,10 @@ def main() -> None:
                 smooth_side_mid = None
 
             side_depth_at_mid = sample_depth_5x5(side_depth, side_mid) if side_mid else None
-            depth_for_gate = side_depth_at_mid if cfg.use_depth_gate else max(1, cfg.depth_enter_mm - 1)
             out = update_grab_state(
                 ctx=grab_ctx,
                 pinch_dist=side_pinch_dist,
-                depth_at_mid_mm=depth_for_gate,
+                depth_at_mid_mm=side_depth_at_mid,
                 hover_key=hover_key,
                 pinch_enter=cfg.pinch_enter,
                 pinch_exit=cfg.pinch_exit,
@@ -320,11 +336,11 @@ def main() -> None:
             )
             cv2.putText(
                 side_frame,
-                f"SideDepth(mm):{side_depth_at_mid if side_depth_at_mid is not None else '-'} Gate:{'OFF(BYPASS)' if not cfg.use_depth_gate else ('ON' if grab_ctx.depth_gate_state else 'OFF')}",
+                f"SideDepth(mm):{side_depth_at_mid if side_depth_at_mid is not None else '-'} Gate:{'ON' if grab_ctx.depth_gate_state else 'OFF'}",
                 (14, 104),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.50,
-                (0, 255, 255) if (grab_ctx.depth_gate_state or (not cfg.use_depth_gate)) else (255, 255, 255),
+                (0, 255, 255) if grab_ctx.depth_gate_state else (255, 255, 255),
                 2,
             )
             cv2.putText(
