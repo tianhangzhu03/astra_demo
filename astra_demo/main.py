@@ -106,6 +106,7 @@ def open_uvc_camera(preferred_id: int, width: int, height: int, label: str):
         if cap.isOpened():
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             print(f"[CAM] {label} use id={cam_id}")
             return cap
         cap.release()
@@ -191,7 +192,14 @@ def main() -> None:
             prop.set_dock((float(side_w * 0.12), float(side_h * 0.22)))
 
             # Top camera: 3x3 grid test only.
-            top_result = hands_top.process(cv2.cvtColor(top_frame, cv2.COLOR_BGR2RGB))
+            top_detect_frame = top_frame
+            if cfg.hand_process_scale < 0.999:
+                top_detect_frame = cv2.resize(
+                    top_frame,
+                    (int(top_w * cfg.hand_process_scale), int(top_h * cfg.hand_process_scale)),
+                    interpolation=cv2.INTER_LINEAR,
+                )
+            top_result = hands_top.process(cv2.cvtColor(top_detect_frame, cv2.COLOR_BGR2RGB))
             hover_key = 0
             top_mid: Optional[Tuple[int, int]] = None
             if top_result.multi_hand_landmarks:
@@ -209,6 +217,12 @@ def main() -> None:
 
             # Side Astra: pinch/depth gate/state/BLE/prop.
             side_detect_frame = enhance_for_hand_detection(side_frame, clahe) if cfg.side_use_clahe else side_frame
+            if cfg.hand_process_scale < 0.999:
+                side_detect_frame = cv2.resize(
+                    side_detect_frame,
+                    (int(side_w * cfg.hand_process_scale), int(side_h * cfg.hand_process_scale)),
+                    interpolation=cv2.INTER_LINEAR,
+                )
             side_result = hands_side.process(cv2.cvtColor(side_detect_frame, cv2.COLOR_BGR2RGB))
             side_pinch_dist: Optional[float] = None
             side_mid: Optional[Tuple[int, int]] = None
@@ -314,7 +328,14 @@ def main() -> None:
 
             cv2.imshow("Top Camera - 3x3 Grid Test", top_frame)
             cv2.imshow("Side Astra - Grab + BLE + Virtual Prop", side_frame)
-            cv2.imshow("Depth Range View", cv2.resize(range_vis, (660, 495), interpolation=cv2.INTER_NEAREST))
+            cv2.imshow(
+                "Depth Range View",
+                cv2.resize(
+                    range_vis,
+                    (cfg.depth_view_width, cfg.depth_view_height),
+                    interpolation=cv2.INTER_NEAREST,
+                ),
+            )
 
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
