@@ -111,6 +111,12 @@ python -m astra_demo.main
 - 深度预览范围：`depth_vis_min_mm` / `depth_vis_max_mm`
 - 虚拟物体：`prop_size_follow` / `prop_size_held` / `prop_follow_alpha`
 
+当前仓库默认值已切为 Demo 预设（适合快速演示）：
+- 顶部九宫格更大：`grid_w_ratio=0.84`, `grid_h_ratio=0.78`
+- 深度门限降权：`depth_enter_mm=760`, `depth_exit_mm=860`
+- 虚拟物体更大：`prop_size_follow=42`, `prop_size_held=56`
+- 侧视增加 Depth Preview + Point Cloud FX 两个可视化窗
+
 判定逻辑（侧视）：
 
 1. 先算捏合距离 `pinch_dist`  

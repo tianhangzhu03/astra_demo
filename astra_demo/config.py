@@ -9,12 +9,13 @@ class AstraDemoConfig:
     camera_fps: int = 30
     depth_unit: str = "mm"
 
-    pinch_enter: float = 0.075
-    pinch_exit: float = 0.095
+    # Demo preset: easier pinch detection.
+    pinch_enter: float = 0.085
+    pinch_exit: float = 0.110
 
-    # Depth is considered "near enough" when z_mm <= threshold.
-    depth_enter_mm: int = 520
-    depth_exit_mm: int = 560
+    # Demo preset: depth is only a soft gate, so thresholds are relaxed.
+    depth_enter_mm: int = 760
+    depth_exit_mm: int = 860
 
     enter_frames: int = 2
     exit_frames: int = 2
@@ -24,18 +25,19 @@ class AstraDemoConfig:
     frame_height: int = 480
 
     # Top 3x3 panel layout
-    grid_w_ratio: float = 0.78
-    grid_h_ratio: float = 0.72
-    grid_y_ratio: float = 0.12
+    grid_w_ratio: float = 0.84
+    grid_h_ratio: float = 0.78
+    grid_y_ratio: float = 0.10
 
     # Side depth visualization range
-    depth_vis_min_mm: int = 250
-    depth_vis_max_mm: int = 1200
+    depth_vis_min_mm: int = 220
+    depth_vis_max_mm: int = 1350
+    pointcloud_stride: int = 8
 
     # Virtual prop visuals
-    prop_size_follow: int = 34
-    prop_size_held: int = 46
-    prop_follow_alpha: float = 0.28
+    prop_size_follow: int = 42
+    prop_size_held: int = 56
+    prop_follow_alpha: float = 0.30
     prop_toggle_cooldown_ms: int = 220
 
     ble_enabled: bool = True

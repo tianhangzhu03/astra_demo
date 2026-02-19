@@ -6,6 +6,7 @@ import time
 from typing import Optional, Tuple
 
 import cv2
+import numpy as np
 
 from .ble_client import BleConfig, BleController
 from .camera_source import create_camera_source
@@ -85,6 +86,30 @@ def build_depth_preview(depth_mm, depth_min_mm: int, depth_max_mm: int, marker_x
         cv2.circle(vis, marker_xy, 6, (255, 255, 255), -1)
         cv2.circle(vis, marker_xy, 10, (0, 0, 0), 2)
     return vis
+
+
+def build_depth_pointcloud_preview(depth_mm, depth_min_mm: int, depth_max_mm: int, stride: int = 8):
+    h, w = depth_mm.shape[:2]
+    canvas_h, canvas_w = 165, 220
+    cloud = np.full((canvas_h, canvas_w, 3), 12, dtype=np.uint8)
+
+    z_span = float(max(1, depth_max_mm - depth_min_mm))
+    step = max(4, stride)
+    for y in range(0, h, step):
+        for x in range(0, w, step):
+            z = int(depth_mm[y, x])
+            if z <= 0 or z < depth_min_mm or z > depth_max_mm:
+                continue
+
+            zn = (z - depth_min_mm) / z_span  # 0 near -> 1 far
+            px = int((x / max(1, w - 1)) * (canvas_w - 1))
+            py = int(20 + (1.0 - zn) * 90 + (y / max(1, h - 1)) * 40)
+            py = max(0, min(canvas_h - 1, py))
+
+            col = cv2.applyColorMap(np.array([[int((1.0 - zn) * 255)]], dtype=np.uint8), cv2.COLORMAP_TURBO)
+            bgr = tuple(int(v) for v in col[0, 0].tolist())
+            cv2.circle(cloud, (px, py), 1, bgr, -1)
+    return cloud
 
 
 def open_uvc_camera(preferred_id: int, width: int, height: int, label: str):
@@ -233,7 +258,8 @@ def main() -> None:
             ble.set_target(out.trigger_on, out.target_key)
             prop.update(hand_xy=side_mid, grab_active=out.trigger_on, now_ms=side_bundle.timestamp_ms)
 
-            draw_panel(top_frame, targets, hover_key=grab_ctx.hover_key, grab_key=grab_ctx.grab_key)
+            # Keep top view clean: grid test only, do not visualize grab state.
+            draw_panel(top_frame, targets, hover_key=hover_key, grab_key=0)
             prop.draw(side_frame)
 
             # Depth preview (colorized) for easier on-site tuning.
@@ -250,6 +276,24 @@ def main() -> None:
                 side_frame,
                 "Depth Preview",
                 (side_w - 220, 26),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (255, 255, 255),
+                2,
+            )
+
+            cloud_vis = build_depth_pointcloud_preview(
+                side_depth,
+                depth_min_mm=cfg.depth_vis_min_mm,
+                depth_max_mm=cfg.depth_vis_max_mm,
+                stride=cfg.pointcloud_stride,
+            )
+            side_frame[180:345, side_w - 228:side_w - 8] = cloud_vis
+            cv2.rectangle(side_frame, (side_w - 228, 180), (side_w - 8, 345), (255, 255, 255), 1)
+            cv2.putText(
+                side_frame,
+                "Point Cloud FX",
+                (side_w - 220, 198),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.55,
                 (255, 255, 255),
