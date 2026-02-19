@@ -115,7 +115,8 @@ python -m astra_demo.main
 - 顶部九宫格更大：`grid_w_ratio=0.84`, `grid_h_ratio=0.78`
 - 深度门限降权：`depth_enter_mm=760`, `depth_exit_mm=860`
 - 虚拟物体更大：`prop_size_follow=42`, `prop_size_held=56`
-- 侧视增加 Depth Preview + Point Cloud FX 两个可视化窗
+- 深度可视化为独立点云窗口：`Depth Point Cloud FX`
+- 默认只显示 30-60cm 距离内容：`depth_vis_min_mm=300`, `depth_vis_max_mm=600`
 
 判定逻辑（侧视）：
 

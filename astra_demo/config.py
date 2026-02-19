@@ -29,9 +29,9 @@ class AstraDemoConfig:
     grid_h_ratio: float = 0.78
     grid_y_ratio: float = 0.10
 
-    # Side depth visualization range
-    depth_vis_min_mm: int = 220
-    depth_vis_max_mm: int = 1350
+    # Side depth visualization range (display-only filter), default 30cm-60cm.
+    depth_vis_min_mm: int = 300
+    depth_vis_max_mm: int = 600
     pointcloud_stride: int = 8
 
     # Virtual prop visuals

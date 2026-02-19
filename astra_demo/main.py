@@ -73,21 +73,6 @@ def draw_panel(frame, targets, hover_key: int, grab_key: int) -> None:
     cv2.addWeighted(overlay, 0.22, frame, 0.78, 0, frame)
 
 
-def build_depth_preview(depth_mm, depth_min_mm: int, depth_max_mm: int, marker_xy: Optional[Tuple[int, int]]):
-    clipped = depth_mm.copy()
-    clipped[clipped <= 0] = depth_max_mm
-    clipped = clipped.astype("float32")
-    clipped = (clipped - depth_min_mm) / float(max(1, depth_max_mm - depth_min_mm))
-    clipped = clipped.clip(0.0, 1.0)
-    gray = (255.0 * (1.0 - clipped)).astype("uint8")
-    vis = cv2.applyColorMap(gray, cv2.COLORMAP_TURBO)
-
-    if marker_xy is not None:
-        cv2.circle(vis, marker_xy, 6, (255, 255, 255), -1)
-        cv2.circle(vis, marker_xy, 10, (0, 0, 0), 2)
-    return vis
-
-
 def build_depth_pointcloud_preview(depth_mm, depth_min_mm: int, depth_max_mm: int, stride: int = 8):
     h, w = depth_mm.shape[:2]
     canvas_h, canvas_w = 165, 220
@@ -262,42 +247,24 @@ def main() -> None:
             draw_panel(top_frame, targets, hover_key=hover_key, grab_key=0)
             prop.draw(side_frame)
 
-            # Depth preview (colorized) for easier on-site tuning.
-            depth_vis = build_depth_preview(
-                side_depth,
-                depth_min_mm=cfg.depth_vis_min_mm,
-                depth_max_mm=cfg.depth_vis_max_mm,
-                marker_xy=side_mid,
-            )
-            depth_vis_small = cv2.resize(depth_vis, (220, 165), interpolation=cv2.INTER_NEAREST)
-            side_frame[8:173, side_w - 228:side_w - 8] = depth_vis_small
-            cv2.rectangle(side_frame, (side_w - 228, 8), (side_w - 8, 173), (255, 255, 255), 1)
-            cv2.putText(
-                side_frame,
-                "Depth Preview",
-                (side_w - 220, 26),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
-                (255, 255, 255),
-                2,
-            )
-
             cloud_vis = build_depth_pointcloud_preview(
                 side_depth,
                 depth_min_mm=cfg.depth_vis_min_mm,
                 depth_max_mm=cfg.depth_vis_max_mm,
                 stride=cfg.pointcloud_stride,
             )
-            side_frame[180:345, side_w - 228:side_w - 8] = cloud_vis
-            cv2.rectangle(side_frame, (side_w - 228, 180), (side_w - 8, 345), (255, 255, 255), 1)
+            if side_mid is not None:
+                px = int((side_mid[0] / max(1, side_w - 1)) * (cloud_vis.shape[1] - 1))
+                py = int((side_mid[1] / max(1, side_h - 1)) * (cloud_vis.shape[0] - 1))
+                cv2.circle(cloud_vis, (px, py), 5, (255, 255, 255), 1)
             cv2.putText(
-                side_frame,
-                "Point Cloud FX",
-                (side_w - 220, 198),
+                cloud_vis,
+                f"Point Cloud FX {cfg.depth_vis_min_mm//10}-{cfg.depth_vis_max_mm//10}cm",
+                (8, 18),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
+                0.5,
                 (255, 255, 255),
-                2,
+                1,
             )
 
             side_error = getattr(side_cam, "get_error", lambda: None)()
@@ -346,6 +313,7 @@ def main() -> None:
 
             cv2.imshow("Top Camera - 3x3 Grid Test", top_frame)
             cv2.imshow("Side Astra - Grab + BLE + Virtual Prop", side_frame)
+            cv2.imshow("Depth Point Cloud FX", cv2.resize(cloud_vis, (660, 495), interpolation=cv2.INTER_NEAREST))
 
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
