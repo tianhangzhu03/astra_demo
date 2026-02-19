@@ -54,6 +54,45 @@ pip install opencv-python mediapipe bleak numpy
 1. 按 [OrbbecSDK](https://github.com/orbbec/OrbbecSDK) 文档安装 Windows 驱动（Astra Pro Plus 属于 OpenNI 协议设备）。
 2. 安装与该运行时匹配的 Python OpenNI 绑定（要求代码中可执行 `from openni import openni2`）。
 
+### 步骤 4.1：Beta OpenNI 版本（当前项目实测）
+
+如果你使用的是这个 Beta 包：
+
+`OpenNI_2.3.0.86_202210111950_4c8f5aa4_beta6_windows_x64`
+
+且 `OpenNI2.dll` 位于：
+
+`...\OpenNI_2.3.0.86_202210111950_4c8f5aa4_beta6_windows\samples\bin\OpenNI2.dll`
+
+则 `OPENNI2_REDIST` 应设置为 **bin 目录**（不是 dll 文件本身）：
+
+`...\OpenNI_2.3.0.86_202210111950_4c8f5aa4_beta6_windows\samples\bin`
+
+PowerShell 临时设置（当前终端）：
+
+```powershell
+$env:OPENNI2_REDIST="C:\Users\Benjamin_Zhu\Downloads\OpenNI_2.3.0.86_202210111950_4c8f5aa4_beta6_windows_x64\OpenNI_2.3.0.86_202210111950_4c8f5aa4_beta6_windows\samples\bin"
+$env:PATH="$env:OPENNI2_REDIST;$env:PATH"
+```
+
+PowerShell 持久设置（用户级）：
+
+```powershell
+[Environment]::SetEnvironmentVariable("OPENNI2_REDIST","C:\Users\Benjamin_Zhu\Downloads\OpenNI_2.3.0.86_202210111950_4c8f5aa4_beta6_windows_x64\OpenNI_2.3.0.86_202210111950_4c8f5aa4_beta6_windows\samples\bin","User")
+$userPath=[Environment]::GetEnvironmentVariable("Path","User")
+if ($userPath -notlike "*OpenNI_2.3.0.86_202210111950_4c8f5aa4_beta6_windows*samples\\bin*") {
+  [Environment]::SetEnvironmentVariable("Path","C:\Users\Benjamin_Zhu\Downloads\OpenNI_2.3.0.86_202210111950_4c8f5aa4_beta6_windows_x64\OpenNI_2.3.0.86_202210111950_4c8f5aa4_beta6_windows\samples\bin;$userPath","User")
+}
+```
+
+设置后请重开终端，再验证：
+
+```powershell
+echo $env:OPENNI2_REDIST
+Test-Path "$env:OPENNI2_REDIST\OpenNI2.dll"
+python -c "from openni import openni2; openni2.initialize(); d=openni2.Device.open_any(); print('openni device ok')"
+```
+
 验证命令：
 
 ```powershell
