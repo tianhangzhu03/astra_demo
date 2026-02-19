@@ -255,10 +255,11 @@ def main() -> None:
                 smooth_side_mid = None
 
             side_depth_at_mid = sample_depth_5x5(side_depth, side_mid) if side_mid else None
+            depth_for_gate = side_depth_at_mid if cfg.use_depth_gate else max(1, cfg.depth_enter_mm - 1)
             out = update_grab_state(
                 ctx=grab_ctx,
                 pinch_dist=side_pinch_dist,
-                depth_at_mid_mm=side_depth_at_mid,
+                depth_at_mid_mm=depth_for_gate,
                 hover_key=hover_key,
                 pinch_enter=cfg.pinch_enter,
                 pinch_exit=cfg.pinch_exit,
@@ -301,10 +302,10 @@ def main() -> None:
             cv2.putText(side_frame, f"BLE: {ble.status_msg}", (14, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.6, ble_color, 2)
             cv2.putText(
                 side_frame,
-                f"State:{grab_ctx.state.value} Target:{grab_ctx.grab_key if grab_ctx.grab_key > 0 else '-'}",
+                f"State:{grab_ctx.state.value} TopKey:{hover_key if hover_key > 0 else '-'} Target:{grab_ctx.grab_key if grab_ctx.grab_key > 0 else '-'}",
                 (14, 52),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.58,
+                0.54,
                 (255, 255, 255),
                 2,
             )
@@ -319,11 +320,11 @@ def main() -> None:
             )
             cv2.putText(
                 side_frame,
-                f"SideDepth(mm):{out.depth_mm if out.depth_mm is not None else '-'} Gate:{'ON' if grab_ctx.depth_gate_state else 'OFF'}",
+                f"SideDepth(mm):{side_depth_at_mid if side_depth_at_mid is not None else '-'} Gate:{'OFF(BYPASS)' if not cfg.use_depth_gate else ('ON' if grab_ctx.depth_gate_state else 'OFF')}",
                 (14, 104),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
-                (0, 255, 255) if grab_ctx.depth_gate_state else (255, 255, 255),
+                0.50,
+                (0, 255, 255) if (grab_ctx.depth_gate_state or (not cfg.use_depth_gate)) else (255, 255, 255),
                 2,
             )
             cv2.putText(
