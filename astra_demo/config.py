@@ -50,10 +50,10 @@ class AstraDemoConfig:
     # 顶部九宫格Y起点占比；调大九宫格整体下移
     grid_y_ratio: float = 0.10
 
-    # 深度可视化最小显示距离（mm）；小于该值不高亮
-    depth_vis_min_mm: int = 300
-    # 深度可视化最大显示距离（mm）；大于该值不高亮
-    depth_vis_max_mm: int = 600
+    # 深度可视化最小显示距离（mm）；Astra 手部演示建议 180~1200
+    depth_vis_min_mm: int = 180
+    # 深度可视化最大显示距离（mm）；调大可显示更远背景
+    depth_vis_max_mm: int = 1200
 
     # 深度独立窗口尺寸；调小可降低渲染开销
     depth_view_width: int = 520

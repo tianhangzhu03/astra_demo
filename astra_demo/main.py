@@ -74,13 +74,30 @@ def draw_panel(frame, targets, hover_key: int, grab_key: int) -> None:
 
 
 def build_depth_range_view(depth_mm, depth_min_mm: int, depth_max_mm: int, marker_xy: Optional[Tuple[int, int]]):
-    h, w = depth_mm.shape[:2]
-    canvas = np.zeros((h, w, 3), dtype=np.uint8)
-
+    # Render full depth as pseudo-color to keep hand shape visible.
+    # Then slightly emphasize configured range.
     valid = depth_mm > 0
-    in_range = valid & (depth_mm >= depth_min_mm) & (depth_mm <= depth_max_mm)
-    canvas[valid] = (30, 30, 30)
-    canvas[in_range] = (80, 220, 80)
+    bounded = valid & (depth_mm >= depth_min_mm) & (depth_mm <= depth_max_mm)
+    if not np.any(valid):
+        canvas = np.zeros((depth_mm.shape[0], depth_mm.shape[1], 3), dtype=np.uint8)
+    else:
+        valid_vals = depth_mm[valid].astype(np.float32)
+        lo = float(np.percentile(valid_vals, 5))
+        hi = float(np.percentile(valid_vals, 95))
+        lo = max(lo, float(depth_min_mm))
+        hi = min(max(lo + 1.0, hi), float(depth_max_mm))
+
+        clipped = depth_mm.astype(np.float32).copy()
+        clipped[~valid] = hi
+        clipped = np.clip(clipped, lo, hi)
+        norm = (clipped - lo) / max(1.0, hi - lo)
+        gray = (255.0 * (1.0 - norm)).astype(np.uint8)
+        canvas = cv2.applyColorMap(gray, cv2.COLORMAP_TURBO)
+        canvas[~valid] = (0, 0, 0)
+
+        # Slightly darken out-of-range to guide operator without losing context.
+        out_of_range = valid & (~bounded)
+        canvas[out_of_range] = (canvas[out_of_range] * 0.35).astype(np.uint8)
 
     if marker_xy is not None:
         cv2.circle(canvas, marker_xy, 6, (255, 255, 255), -1)

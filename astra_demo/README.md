@@ -118,7 +118,7 @@ python -m astra_demo.main
 - 深度门限降权：`depth_enter_mm=760`, `depth_exit_mm=860`
 - 虚拟物体更大：`prop_size_follow=42`, `prop_size_held=56`
 - 深度可视化为独立清晰窗口：`Depth Range View`
-- 默认只显示 30-60cm 距离内容：`depth_vis_min_mm=300`, `depth_vis_max_mm=600`
+- 默认显示范围已放宽（更容易看清手部）：`depth_vis_min_mm=180`, `depth_vis_max_mm=1200`
 - 默认深度不参与抓取判定：`use_depth_gate=False`（仅显示）
 - 侧面识别增强默认开启：`side_use_clahe=True`
 - 低延迟预设默认开启：`hand_process_scale=0.75`, `smooth_alpha=0.55`
