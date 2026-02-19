@@ -61,8 +61,6 @@ class AstraDemoConfig:
     prop_size_follow: int = 36
     # 虚拟物体抓取态尺寸；调大抓取时更显眼
     prop_size_held: int = 50
-    # 虚拟物体初始所在九宫格编号（1~9）
-    prop_init_grid_key: int = 5
     # 虚拟物体跟随平滑系数；调大更跟手，调小更丝滑
     prop_follow_alpha: float = 0.32
     # V键切换冷却时间（ms）；防止长按导致连续切换卡顿

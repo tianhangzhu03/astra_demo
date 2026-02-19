@@ -154,7 +154,6 @@ def main() -> None:
     smooth_side_mid: Optional[list[float]] = None
     checked_alignment = False
     last_toggle_ms = 0
-    prop_initialized = False
 
     print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit, 'v' to toggle prop type.")
 
@@ -190,16 +189,7 @@ def main() -> None:
                 panel_h_ratio=cfg.grid_h_ratio,
                 panel_y_ratio=cfg.grid_y_ratio,
             )
-            if not prop_initialized:
-                init_key = cfg.prop_init_grid_key if 1 <= cfg.prop_init_grid_key <= 9 else 5
-                x1, y1, x2, y2 = targets[init_key]
-                top_cx = (x1 + x2) // 2
-                top_cy = (y1 + y2) // 2
-                ratio_x = top_cx / float(max(1, top_w - 1))
-                ratio_y = top_cy / float(max(1, top_h - 1))
-                init_side_xy = (ratio_x * (side_w - 1), ratio_y * (side_h - 1))
-                prop.initialize_at(init_side_xy, visible=True)
-                prop_initialized = True
+            prop.set_dock((float(side_w * 0.12), float(side_h * 0.22)))
 
             # Top camera: 3x3 grid test only.
             top_detect_frame = top_frame

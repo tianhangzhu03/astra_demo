@@ -121,7 +121,6 @@ python -m astra_demo.main
 - 默认只显示 30-60cm 距离内容：`depth_vis_min_mm=300`, `depth_vis_max_mm=600`
 - 侧面识别增强默认开启：`side_use_clahe=True`
 - 低延迟预设默认开启：`hand_process_scale=0.75`, `smooth_alpha=0.55`
-- 虚拟物体默认常驻，并初始化在中间格：`prop_init_grid_key=5`
 
 判定逻辑（侧视）：
 

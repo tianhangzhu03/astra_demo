@@ -15,7 +15,6 @@ class VirtualPropType(str, Enum):
 
 class VirtualPropState(str, Enum):
     HIDDEN = "HIDDEN"
-    PINNED = "PINNED"
     HELD = "HELD"
 
 
@@ -41,27 +40,19 @@ class VirtualProp:
     def set_dock(self, xy: Tuple[float, float]) -> None:
         self.dock_xy = xy
 
-    def initialize_at(self, xy: Tuple[float, float], visible: bool = True) -> None:
-        self.pos_xy = (float(xy[0]), float(xy[1]))
-        self.state = VirtualPropState.PINNED if visible else VirtualPropState.HIDDEN
-
     def update(self, hand_xy: Optional[Tuple[int, int]], grab_active: bool, now_ms: int) -> None:
-        # Persistent demo behavior:
-        # - Initialized object is always visible (PINNED)
-        # - During grab: object follows hand (HELD)
-        # - On release/lost hand: object stays at last position (PINNED)
-        if grab_active and hand_xy is not None:
-            self.state = VirtualPropState.HELD
-            hand_f = (float(hand_xy[0]), float(hand_xy[1]))
-            px, py = self.pos_xy
-            self.pos_xy = (
-                (1.0 - self.follow_alpha) * px + self.follow_alpha * hand_f[0],
-                (1.0 - self.follow_alpha) * py + self.follow_alpha * hand_f[1],
-            )
+        # Demo behavior: show only while grabbing. Release => hide immediately.
+        if (not grab_active) or hand_xy is None:
+            self.state = VirtualPropState.HIDDEN
             return
 
-        if self.state != VirtualPropState.HIDDEN:
-            self.state = VirtualPropState.PINNED
+        self.state = VirtualPropState.HELD
+        hand_f = (float(hand_xy[0]), float(hand_xy[1]))
+        px, py = self.pos_xy
+        self.pos_xy = (
+            (1.0 - self.follow_alpha) * px + self.follow_alpha * hand_f[0],
+            (1.0 - self.follow_alpha) * py + self.follow_alpha * hand_f[1],
+        )
 
     def draw(self, frame: np.ndarray) -> None:
         if self.state == VirtualPropState.HIDDEN:
