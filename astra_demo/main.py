@@ -131,9 +131,9 @@ def main() -> None:
     ble.start()
 
     top_cap = open_uvc_camera(cfg.top_camera_id, cfg.frame_width, cfg.frame_height, "top(phone)")
-    side_cap = open_uvc_camera(cfg.side_color_camera_id, cfg.frame_width, cfg.frame_height, "side(color-uvc)")
     side_cam = create_camera_source(fps=cfg.camera_fps)
     side_cam.start()
+    side_cap = open_uvc_camera(cfg.side_color_camera_id, cfg.frame_width, cfg.frame_height, "side(color-uvc)")
 
     mp_hands, _ = load_hands_api()
     hands_top = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.6, min_tracking_confidence=0.6)
