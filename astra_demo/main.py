@@ -202,13 +202,8 @@ def main() -> None:
                 panel_y_ratio=cfg.grid_y_ratio,
             )
             if not prop_initialized:
-                init_key = cfg.prop_init_grid_key if 1 <= cfg.prop_init_grid_key <= 9 else 5
-                x1, y1, x2, y2 = targets[init_key]
-                top_cx = (x1 + x2) // 2
-                top_cy = (y1 + y2) // 2
-                ratio_x = top_cx / float(max(1, top_w - 1))
-                ratio_y = top_cy / float(max(1, top_h - 1))
-                init_side_xy = (ratio_x * (side_w - 1), ratio_y * (side_h - 1))
+                # Non-fixed initialization: start near side dock so user can pick it directly.
+                init_side_xy = (float(side_w * 0.30), float(side_h * 0.45))
                 prop.initialize_at(init_side_xy, visible=cfg.prop_idle_visible)
                 prop_initialized = True
 

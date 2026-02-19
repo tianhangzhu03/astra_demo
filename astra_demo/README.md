@@ -122,6 +122,7 @@ python -m astra_demo.main
 - 默认深度不参与抓取判定：`use_depth_gate=False`（仅显示）
 - 侧面识别增强默认开启：`side_use_clahe=True`
 - 低延迟预设默认开启：`hand_process_scale=0.75`, `smooth_alpha=0.55`
+- 虚拟物体默认常驻，初始化为侧面普通位置（不固定九宫格）
 
 判定逻辑（侧视）：
 
