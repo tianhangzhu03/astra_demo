@@ -13,6 +13,11 @@ class AstraDemoConfig:
     pinch_enter: float = 0.085
     pinch_exit: float = 0.110
 
+    # Side hand detector params.
+    side_min_detection_confidence: float = 0.5
+    side_min_tracking_confidence: float = 0.65
+    side_use_clahe: bool = True
+
     # Demo preset: depth is only a soft gate, so thresholds are relaxed.
     depth_enter_mm: int = 760
     depth_exit_mm: int = 860

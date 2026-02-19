@@ -107,6 +107,7 @@ python -m astra_demo.main
 - 捏合：`pinch_enter` / `pinch_exit`
 - 深度：`depth_enter_mm` / `depth_exit_mm`
 - 防抖：`enter_frames` / `exit_frames`
+- 侧面手识别：`side_min_detection_confidence` / `side_min_tracking_confidence` / `side_use_clahe`
 - 九宫格：`grid_w_ratio` / `grid_h_ratio` / `grid_y_ratio`
 - 深度预览范围：`depth_vis_min_mm` / `depth_vis_max_mm`
 - 虚拟物体：`prop_size_follow` / `prop_size_held` / `prop_follow_alpha`
@@ -115,8 +116,9 @@ python -m astra_demo.main
 - 顶部九宫格更大：`grid_w_ratio=0.84`, `grid_h_ratio=0.78`
 - 深度门限降权：`depth_enter_mm=760`, `depth_exit_mm=860`
 - 虚拟物体更大：`prop_size_follow=42`, `prop_size_held=56`
-- 深度可视化为独立点云窗口：`Depth Point Cloud FX`
+- 深度可视化为独立清晰窗口：`Depth Range View`
 - 默认只显示 30-60cm 距离内容：`depth_vis_min_mm=300`, `depth_vis_max_mm=600`
+- 侧面识别增强默认开启：`side_use_clahe=True`
 
 判定逻辑（侧视）：
 

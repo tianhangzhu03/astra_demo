@@ -73,28 +73,27 @@ def draw_panel(frame, targets, hover_key: int, grab_key: int) -> None:
     cv2.addWeighted(overlay, 0.22, frame, 0.78, 0, frame)
 
 
-def build_depth_pointcloud_preview(depth_mm, depth_min_mm: int, depth_max_mm: int, stride: int = 8):
+def build_depth_range_view(depth_mm, depth_min_mm: int, depth_max_mm: int, marker_xy: Optional[Tuple[int, int]]):
     h, w = depth_mm.shape[:2]
-    canvas_h, canvas_w = 165, 220
-    cloud = np.full((canvas_h, canvas_w, 3), 12, dtype=np.uint8)
+    canvas = np.zeros((h, w, 3), dtype=np.uint8)
 
-    z_span = float(max(1, depth_max_mm - depth_min_mm))
-    step = max(4, stride)
-    for y in range(0, h, step):
-        for x in range(0, w, step):
-            z = int(depth_mm[y, x])
-            if z <= 0 or z < depth_min_mm or z > depth_max_mm:
-                continue
+    valid = depth_mm > 0
+    in_range = valid & (depth_mm >= depth_min_mm) & (depth_mm <= depth_max_mm)
+    canvas[valid] = (30, 30, 30)
+    canvas[in_range] = (80, 220, 80)
 
-            zn = (z - depth_min_mm) / z_span  # 0 near -> 1 far
-            px = int((x / max(1, w - 1)) * (canvas_w - 1))
-            py = int(20 + (1.0 - zn) * 90 + (y / max(1, h - 1)) * 40)
-            py = max(0, min(canvas_h - 1, py))
+    if marker_xy is not None:
+        cv2.circle(canvas, marker_xy, 6, (255, 255, 255), -1)
+        cv2.circle(canvas, marker_xy, 10, (0, 0, 0), 2)
+    return canvas
 
-            col = cv2.applyColorMap(np.array([[int((1.0 - zn) * 255)]], dtype=np.uint8), cv2.COLORMAP_TURBO)
-            bgr = tuple(int(v) for v in col[0, 0].tolist())
-            cv2.circle(cloud, (px, py), 1, bgr, -1)
-    return cloud
+
+def enhance_for_hand_detection(frame_bgr, clahe):
+    lab = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    l2 = clahe.apply(l)
+    enhanced = cv2.cvtColor(cv2.merge((l2, a, b)), cv2.COLOR_LAB2BGR)
+    return cv2.GaussianBlur(enhanced, (3, 3), 0)
 
 
 def open_uvc_camera(preferred_id: int, width: int, height: int, label: str):
@@ -137,7 +136,12 @@ def main() -> None:
 
     mp_hands, _ = load_hands_api()
     hands_top = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.6, min_tracking_confidence=0.6)
-    hands_side = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.6, min_tracking_confidence=0.6)
+    hands_side = mp_hands.Hands(
+        max_num_hands=1,
+        min_detection_confidence=cfg.side_min_detection_confidence,
+        min_tracking_confidence=cfg.side_min_tracking_confidence,
+    )
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 
     grab_ctx = GrabContext()
     prop = VirtualProp(release_return_ms=cfg.release_return_ms)
@@ -204,7 +208,8 @@ def main() -> None:
                 smooth_top_mid = None
 
             # Side Astra: pinch/depth gate/state/BLE/prop.
-            side_result = hands_side.process(cv2.cvtColor(side_frame, cv2.COLOR_BGR2RGB))
+            side_detect_frame = enhance_for_hand_detection(side_frame, clahe) if cfg.side_use_clahe else side_frame
+            side_result = hands_side.process(cv2.cvtColor(side_detect_frame, cv2.COLOR_BGR2RGB))
             side_pinch_dist: Optional[float] = None
             side_mid: Optional[Tuple[int, int]] = None
             if side_result.multi_hand_landmarks:
@@ -247,19 +252,15 @@ def main() -> None:
             draw_panel(top_frame, targets, hover_key=hover_key, grab_key=0)
             prop.draw(side_frame)
 
-            cloud_vis = build_depth_pointcloud_preview(
+            range_vis = build_depth_range_view(
                 side_depth,
                 depth_min_mm=cfg.depth_vis_min_mm,
                 depth_max_mm=cfg.depth_vis_max_mm,
-                stride=cfg.pointcloud_stride,
+                marker_xy=side_mid,
             )
-            if side_mid is not None:
-                px = int((side_mid[0] / max(1, side_w - 1)) * (cloud_vis.shape[1] - 1))
-                py = int((side_mid[1] / max(1, side_h - 1)) * (cloud_vis.shape[0] - 1))
-                cv2.circle(cloud_vis, (px, py), 5, (255, 255, 255), 1)
             cv2.putText(
-                cloud_vis,
-                f"Point Cloud FX {cfg.depth_vis_min_mm//10}-{cfg.depth_vis_max_mm//10}cm",
+                range_vis,
+                f"Depth Range {cfg.depth_vis_min_mm//10}-{cfg.depth_vis_max_mm//10}cm",
                 (8, 18),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.5,
@@ -313,7 +314,7 @@ def main() -> None:
 
             cv2.imshow("Top Camera - 3x3 Grid Test", top_frame)
             cv2.imshow("Side Astra - Grab + BLE + Virtual Prop", side_frame)
-            cv2.imshow("Depth Point Cloud FX", cv2.resize(cloud_vis, (660, 495), interpolation=cv2.INTER_NEAREST))
+            cv2.imshow("Depth Range View", cv2.resize(range_vis, (660, 495), interpolation=cv2.INTER_NEAREST))
 
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
