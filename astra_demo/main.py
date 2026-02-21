@@ -28,17 +28,19 @@ def get_thumb_index_data(hand_lms, w: int, h: int) -> tuple[tuple[int, int], tup
 
 
 def compute_targets(w: int, h: int, panel_w_ratio: float, panel_h_ratio: float, panel_y_ratio: float) -> dict[int, tuple[int, int, int, int]]:
+    rows = 2
+    cols = 2
     panel_w = int(w * panel_w_ratio)
     panel_h = int(h * panel_h_ratio)
     sx = (w - panel_w) // 2
     sy = int(h * panel_y_ratio)
-    cw = panel_w // 3
-    ch = panel_h // 3
+    cw = panel_w // cols
+    ch = panel_h // rows
 
     targets: dict[int, tuple[int, int, int, int]] = {}
-    for r in range(3):
-        for c in range(3):
-            key = r * 3 + c + 1
+    for r in range(rows):
+        for c in range(cols):
+            key = r * cols + c + 1
             x1 = sx + c * cw
             y1 = sy + r * ch
             x2 = x1 + cw
