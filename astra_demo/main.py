@@ -219,9 +219,9 @@ def main() -> None:
                 panel_y_ratio=cfg.grid_y_ratio,
             )
             if not prop_initialized:
-                # Non-fixed initialization: start near side dock so user can pick it directly.
-                init_side_xy = (float(side_w * 0.30), float(side_h * 0.45))
-                prop.initialize_at(init_side_xy, visible=cfg.prop_idle_visible)
+                # Top-view operation: initialize prop directly in top view.
+                init_top_xy = (float(top_w * 0.50), float(top_h * 0.50))
+                prop.initialize_at(init_top_xy, visible=cfg.prop_idle_visible)
                 prop_initialized = True
 
             # Top camera: 3x3 grid test only.
@@ -283,8 +283,9 @@ def main() -> None:
             else:
                 smooth_side_mid = None
 
+            # Side camera now only provides pinch trigger.
             side_depth_at_mid = sample_depth_5x5(side_depth, side_mid) if side_mid else None
-            depth_for_gate = side_depth_at_mid if cfg.use_depth_gate else max(1, cfg.depth_enter_mm - 1)
+            depth_for_gate = max(1, cfg.depth_enter_mm - 1)
             out = update_grab_state(
                 ctx=grab_ctx,
                 pinch_dist=side_pinch_dist,
@@ -301,7 +302,7 @@ def main() -> None:
 
             ble.set_target(out.trigger_on, out.target_key)
             prop.update(
-                hand_xy=side_mid,
+                hand_xy=top_mid,
                 grab_active=out.trigger_on,
                 now_ms=side_bundle.timestamp_ms,
                 keep_idle_visible=cfg.prop_idle_visible,
@@ -309,7 +310,7 @@ def main() -> None:
 
             # Keep top view clean: grid test only, do not visualize grab state.
             draw_panel(top_frame, targets, hover_key=hover_key, grab_key=0)
-            prop.draw(side_frame)
+            prop.draw(top_frame)
 
             range_vis = build_depth_range_view(
                 side_depth,
@@ -354,11 +355,11 @@ def main() -> None:
             )
             cv2.putText(
                 side_frame,
-                f"SideDepth(mm):{side_depth_at_mid if side_depth_at_mid is not None else '-'} Gate:{'BYPASS' if not cfg.use_depth_gate else ('ON' if grab_ctx.depth_gate_state else 'OFF')}",
+                f"SideDepth(mm):{side_depth_at_mid if side_depth_at_mid is not None else '-'} Gate:BYPASS",
                 (14, 104),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.55,
-                (0, 255, 255) if (grab_ctx.depth_gate_state or (not cfg.use_depth_gate)) else (255, 255, 255),
+                (0, 255, 255),
                 2,
             )
             cv2.putText(
