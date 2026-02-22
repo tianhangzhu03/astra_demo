@@ -3,71 +3,71 @@ from dataclasses import dataclass
 
 @dataclass
 class AstraDemoConfig:
-    # 顶部摄像头ID（用于九宫格命中判定）
+    # Top camera ID (used for grid hit testing).
     top_camera_id: int = 2
-    # 侧面彩色相机ID（用于手势识别与渲染）
+    # Side color camera ID (used for hand detection and rendering).
     side_color_camera_id: int = 1
 
-    # 目标采集帧率；调大可降低感知延迟，但CPU占用更高
+    # Target capture FPS; higher values reduce perceived latency but increase CPU usage.
     camera_fps: int = 30
     depth_unit: str = "mm"
 
-    # 拇指-食指捏合进入阈值（归一化距离）；调大更容易触发
+    # Thumb-index pinch enter threshold (normalized distance); larger is easier to trigger.
     pinch_enter: float = 0.085
-    # 捏合退出阈值（应大于 enter，形成迟滞防抖）；调大更不容易释放
+    # Pinch exit threshold (should be > enter to form hysteresis); larger is harder to release.
     pinch_exit: float = 0.110
 
-    # 侧面手检测最小置信度；调大可减少误检但可能漏检
+    # Side-view hand detection minimum confidence; higher reduces false positives but may miss detections.
     side_min_detection_confidence: float = 0.5
-    # 侧面手跟踪最小置信度；调大可减少抖动但可能丢跟踪
+    # Side-view hand tracking minimum confidence; higher reduces jitter but may lose tracking.
     side_min_tracking_confidence: float = 0.65
-    # 是否对侧面图做CLAHE增强（弱光/低对比建议开）
+    # Whether to apply CLAHE enhancement to side-view frames (recommended in low light / low contrast).
     side_use_clahe: bool = True
-    # 手势识别输入缩放比（<1可降延迟）；调小更快但精度略降
+    # Hand detection input scale (<1 can reduce latency); smaller is faster but slightly less accurate.
     hand_process_scale: float = 0.75
 
-    # 深度进入阈值（mm，越小表示要求越近）；当前作为“软门限”
+    # Depth enter threshold (mm); smaller means the hand must be closer. Currently used as a soft gate.
     depth_enter_mm: int = 760
-    # 深度退出阈值（mm，应大于 enter）；调大更不容易退出
+    # Depth exit threshold (mm, should be > enter); larger makes release less sensitive.
     depth_exit_mm: int = 860
-    # 是否启用深度门限参与抓取判定；False 时深度仅用于显示
+    # Whether depth gating participates in grab decision; when False, depth is visualization only.
     use_depth_gate: bool = False
 
-    # 进入状态所需连续帧数；调大更稳但延迟增加
+    # Consecutive frames required to enter a state; larger is more stable but adds latency.
     enter_frames: int = 2
-    # 退出状态所需连续帧数；调大更稳但释放更慢
+    # Consecutive frames required to exit a state; larger is more stable but releases slower.
     exit_frames: int = 2
-    # 中点平滑系数（0~1）；调大更跟手，调小更平滑
+    # Midpoint smoothing factor (0~1); larger is more responsive, smaller is smoother.
     smooth_alpha: float = 0.55
 
     frame_width: int = 640
     frame_height: int = 480
 
-    # 顶部九宫格宽度占比；调大九宫格更大
+    # Top grid width ratio; larger makes the grid bigger.
     grid_w_ratio: float = 0.84
-    # 顶部九宫格高度占比；调大九宫格更大
+    # Top grid height ratio; larger makes the grid bigger.
     grid_h_ratio: float = 0.78
-    # 顶部九宫格Y起点占比；调大九宫格整体下移
+    # Top grid Y-offset ratio; larger moves the grid downward.
     grid_y_ratio: float = 0.10
 
-    # 深度可视化最小显示距离（mm）；Astra 手部演示建议 180~1200
+    # Minimum depth visualization distance (mm); Astra hand demos typically use 180~1200.
     depth_vis_min_mm: int = 180
-    # 深度可视化最大显示距离（mm）；调大可显示更远背景
+    # Maximum depth visualization distance (mm); larger shows farther background.
     depth_vis_max_mm: int = 1200
 
-    # 深度独立窗口尺寸；调小可降低渲染开销
+    # Depth standalone window size; smaller reduces rendering cost.
     depth_view_width: int = 520
     depth_view_height: int = 390
 
-    # 虚拟物体跟随态尺寸；调大球/方块更大
+    # Virtual prop size in follow state; larger makes the ball/cube bigger.
     prop_size_follow: int = 36
-    # 虚拟物体抓取态尺寸；调大抓取时更显眼
+    # Virtual prop size in held state; larger is more visually prominent while grabbing.
     prop_size_held: int = 50
-    # 松手后是否保持可见（True=保留，False=隐藏）
+    # Whether the prop remains visible after release (True=keep, False=hide).
     prop_idle_visible: bool = True
-    # 虚拟物体跟随平滑系数；调大更跟手，调小更丝滑
+    # Virtual prop follow smoothing factor; larger is more responsive, smaller is smoother.
     prop_follow_alpha: float = 0.32
-    # V键切换冷却时间（ms）；防止长按导致连续切换卡顿
+    # V-key toggle cooldown (ms); prevents repeated toggles when holding the key.
     prop_toggle_cooldown_ms: int = 220
 
     ble_enabled: bool = True
@@ -76,5 +76,5 @@ class AstraDemoConfig:
     ble_fixed_volts: int = 2000
     ble_fixed_freq: int = 100
 
-    # 抓取释放后回位动画时长（ms）
+    # Return animation duration after release (ms).
     release_return_ms: int = 200
