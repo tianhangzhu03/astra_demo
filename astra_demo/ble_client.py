@@ -42,6 +42,48 @@ class BleController:
 
         self._thread: threading.Thread | None = None
 
+    @staticmethod
+    def _char_properties(char) -> set[str]:
+        props = getattr(char, "properties", []) or []
+        return {str(p).lower() for p in props}
+
+    def _find_write_characteristic(self, client: BleakClient):
+        exact = None
+        writable_fallback = None
+        desired_uuid = self._cfg.uuid.lower().strip()
+
+        for service in client.services:
+            for char in service.characteristics:
+                props = self._char_properties(char)
+                is_writable = ("write" in props) or ("write-without-response" in props)
+                if char.uuid.lower() == desired_uuid:
+                    exact = char
+                    if is_writable:
+                        return char, "exact"
+                if is_writable and writable_fallback is None:
+                    writable_fallback = char
+
+        if writable_fallback is not None:
+            return writable_fallback, "fallback"
+        if exact is not None:
+            return exact, "uuid-not-writable"
+        return None, "not-found"
+
+    async def _write_packet(self, client: BleakClient, char, packet: bytes) -> None:
+        props = self._char_properties(char)
+        supports_write_rsp = "write" in props
+        supports_write_no_rsp = "write-without-response" in props
+
+        if supports_write_rsp:
+            try:
+                await client.write_gatt_char(char.uuid, packet, response=True)
+                return
+            except Exception:
+                if not supports_write_no_rsp:
+                    raise
+
+        await client.write_gatt_char(char.uuid, packet, response=False)
+
     def start(self) -> None:
         if not self._cfg.enabled:
             return
@@ -79,23 +121,28 @@ class BleController:
                 self.status_msg = "Connecting..."
                 client = BleakClient(device)
                 await client.connect()
+                try:
+                    await client.get_services()
+                except Exception:
+                    # Some Bleak versions populate services on connect; ignore if explicit fetch is unsupported.
+                    pass
 
-                write_char = None
-                for service in client.services:
-                    for char in service.characteristics:
-                        if char.uuid.lower() == self._cfg.uuid.lower():
-                            write_char = char
-                            break
-                    if write_char:
-                        break
-
+                write_char, select_mode = self._find_write_characteristic(client)
                 if not write_char:
-                    self.status_msg = "UUID Error"
+                    self.status_msg = "UUID/WRITE Char Error"
+                    await client.disconnect()
+                    await asyncio.sleep(2.0)
+                    continue
+                if select_mode == "uuid-not-writable":
+                    self.status_msg = "UUID Not Writable"
                     await client.disconnect()
                     await asyncio.sleep(2.0)
                     continue
 
-                self.status_msg = "Connected"
+                if select_mode == "fallback":
+                    self.status_msg = f"Connected(Fallback UUID:{write_char.uuid[:8]})"
+                else:
+                    self.status_msg = "Connected"
                 self.is_connected = True
                 last_pressed = False
 
@@ -106,11 +153,11 @@ class BleController:
                     if cur_trigger and not last_pressed:
                         if cur_key > 0:
                             packet = create_packet(self._cfg.fixed_volts, self._cfg.fixed_freq, start=True)
-                            await client.write_gatt_char(write_char.uuid, packet, response=True)
+                            await self._write_packet(client, write_char, packet)
                         last_pressed = True
                     elif not cur_trigger and last_pressed:
                         packet = create_packet(0, 0, start=True)
-                        await client.write_gatt_char(write_char.uuid, packet, response=True)
+                        await self._write_packet(client, write_char, packet)
                         last_pressed = False
 
                     await asyncio.sleep(0.01)
