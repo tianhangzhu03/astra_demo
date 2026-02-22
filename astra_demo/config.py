@@ -71,10 +71,10 @@ class AstraDemoConfig:
     prop_toggle_cooldown_ms: int = 220
 
     ble_enabled: bool = True
-    ble_mac_address: str = "FE:56:9B:F0:CF:0E"
-    ble_uuid: str = "120062c4-b99e-4141-9439-c4f9db977899"
-    ble_fixed_volts: int = 2000
-    ble_fixed_freq: int = 100
+    ble_mac_address: str = "DE:48:06:7C:24:C9"
+    ble_uuid: str = "020062c4-b99e-4141-9439-c4f9db977899"
+    ble_fixed_volts: int = 1000
+    ble_fixed_freq: int = 35
 
     # Return animation duration after release (ms).
     release_return_ms: int = 200
