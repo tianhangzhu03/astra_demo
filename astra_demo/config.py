@@ -72,9 +72,11 @@ class AstraDemoConfig:
 
     ble_enabled: bool = True
     ble_mac_address: str = "FE:56:9B:F0:CF:0E"
-    ble_uuid: str = "000062c4-b99e-4141-9439-c4f9db977899"
-    ble_fixed_volts: int = 1000
-    ble_fixed_freq: int = 35
+    ble_uuid: str = "120062c4-b99e-4141-9439-c4f9db977899"
+    ble_fixed_volts: int = 2500
+    ble_fixed_freq: int = 100
+    # One-shot vibration pulse duration after a grab trigger (ms).
+    ble_pulse_ms: int = 2000
 
     # Return animation duration after release (ms).
     release_return_ms: int = 200

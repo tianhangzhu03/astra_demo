@@ -156,6 +156,7 @@ def main() -> None:
             uuid=cfg.ble_uuid,
             fixed_volts=cfg.ble_fixed_volts,
             fixed_freq=cfg.ble_fixed_freq,
+            pulse_ms=cfg.ble_pulse_ms,
         )
     )
     ble.start()

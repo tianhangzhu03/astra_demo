@@ -15,6 +15,7 @@ class BleConfig:
     uuid: str
     fixed_volts: int = 2000
     fixed_freq: int = 100
+    pulse_ms: int = 2000
 
 
 def create_packet(volts: int, freq: int, start: bool = True) -> bytes:
@@ -98,20 +99,29 @@ class BleController:
                 self.status_msg = "Connected"
                 self.is_connected = True
                 last_pressed = False
+                pulse_active = False
+                pulse_end_t = 0.0
+                loop_time = asyncio.get_running_loop().time
 
                 while self.running and client.is_connected:
                     cur_trigger = self.trigger_on
                     cur_key = self.target_key
+                    now_t = loop_time()
 
                     if cur_trigger and not last_pressed:
                         if cur_key > 0:
                             packet = create_packet(self._cfg.fixed_volts, self._cfg.fixed_freq, start=True)
                             await client.write_gatt_char(write_char.uuid, packet, response=True)
+                            pulse_active = True
+                            pulse_end_t = now_t + max(0.0, self._cfg.pulse_ms / 1000.0)
                         last_pressed = True
                     elif not cur_trigger and last_pressed:
+                        last_pressed = False
+
+                    if pulse_active and now_t >= pulse_end_t:
                         packet = create_packet(0, 0, start=True)
                         await client.write_gatt_char(write_char.uuid, packet, response=True)
-                        last_pressed = False
+                        pulse_active = False
 
                     await asyncio.sleep(0.01)
 
