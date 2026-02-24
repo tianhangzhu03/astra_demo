@@ -191,6 +191,7 @@ def main() -> None:
     checked_alignment = False
     last_toggle_ms = 0
     prop_initialized = False
+    last_grab_trigger = False
 
     print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit, 'v' to cycle hardness.")
 
@@ -307,6 +308,14 @@ def main() -> None:
                 exit_frames=cfg.exit_frames,
             )
             grab_ctx = out.context
+
+            if out.trigger_on and not last_grab_trigger:
+                pinch_str = f"{side_pinch_dist:.4f}" if side_pinch_dist is not None else "-"
+                print(
+                    f"[GRAB] ts_ms={side_bundle.timestamp_ms} "
+                    f"pinch={pinch_str} target={out.target_key} hardness={prop.hardness.value}"
+                )
+            last_grab_trigger = out.trigger_on
 
             active_freq = hardness_freq_map.get(prop.hardness.value, cfg.ble_fixed_freq)
             ble.set_target(out.trigger_on, out.target_key, freq_hz=active_freq)
