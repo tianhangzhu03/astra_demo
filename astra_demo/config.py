@@ -25,6 +25,16 @@ class AstraDemoConfig:
     side_use_clahe: bool = True
     # Hand detection input scale (<1 can reduce latency); smaller is faster but slightly less accurate.
     hand_process_scale: float = 0.75
+    # Top-view hand detection scale (<1 reduces latency for the phone top camera path).
+    top_hand_process_scale: float = 0.60
+    # Top-view MediaPipe confidence thresholds.
+    top_min_detection_confidence: float = 0.55
+    top_min_tracking_confidence: float = 0.55
+    # Top-view cursor smoothing / prediction (higher alpha and small prediction reduce visual lag).
+    top_smooth_alpha: float = 0.82
+    top_predict_beta: float = 0.20
+    # Use palm center (more stable in top view) instead of thumb-index midpoint for top XY.
+    top_use_palm_center: bool = True
 
     # Depth enter threshold (mm); smaller means the hand must be closer. Currently used as a soft gate.
     depth_enter_mm: int = 760
@@ -66,7 +76,7 @@ class AstraDemoConfig:
     # Whether the prop remains visible after release (True=keep, False=hide).
     prop_idle_visible: bool = True
     # Virtual prop follow smoothing factor; larger is more responsive, smaller is smoother.
-    prop_follow_alpha: float = 0.45
+    prop_follow_alpha: float = 0.68
     # V-key toggle cooldown (ms); prevents repeated toggles when holding the key.
     prop_toggle_cooldown_ms: int = 220
 

@@ -27,6 +27,16 @@ def get_thumb_index_data(hand_lms, w: int, h: int) -> tuple[tuple[int, int], tup
     return (tx, ty), (ix, iy), (mx, my), dist
 
 
+def get_palm_center_xy(hand_lms, w: int, h: int) -> tuple[int, int]:
+    # Palm landmarks are usually more stable than fingertips in top view.
+    palm_ids = (0, 5, 9, 13, 17)
+    xs = [hand_lms.landmark[i].x for i in palm_ids]
+    ys = [hand_lms.landmark[i].y for i in palm_ids]
+    cx = int((sum(xs) / len(xs)) * w)
+    cy = int((sum(ys) / len(ys)) * h)
+    return (cx, cy)
+
+
 def compute_targets(w: int, h: int, panel_w_ratio: float, panel_h_ratio: float, panel_y_ratio: float) -> dict[int, tuple[int, int, int, int]]:
     rows = 2
     cols = 2
@@ -167,7 +177,12 @@ def main() -> None:
     side_cap = open_uvc_camera(cfg.side_color_camera_id, cfg.frame_width, cfg.frame_height, "side(color-uvc)")
 
     mp_hands, _ = load_hands_api()
-    hands_top = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.6, min_tracking_confidence=0.6)
+    hands_top = mp_hands.Hands(
+        max_num_hands=1,
+        min_detection_confidence=cfg.top_min_detection_confidence,
+        min_tracking_confidence=cfg.top_min_tracking_confidence,
+        model_complexity=0,
+    )
     hands_side = mp_hands.Hands(
         max_num_hands=1,
         min_detection_confidence=cfg.side_min_detection_confidence,
@@ -192,6 +207,7 @@ def main() -> None:
     }
 
     smooth_top_mid: Optional[list[float]] = None
+    last_top_filtered_xy: Optional[tuple[float, float]] = None
     smooth_side_mid: Optional[list[float]] = None
     checked_alignment = False
     last_toggle_ms = 0
@@ -240,10 +256,10 @@ def main() -> None:
 
             # Top camera: 3x3 grid test only.
             top_detect_frame = top_frame
-            if cfg.hand_process_scale < 0.999:
+            if cfg.top_hand_process_scale < 0.999:
                 top_detect_frame = cv2.resize(
                     top_frame,
-                    (int(top_w * cfg.hand_process_scale), int(top_h * cfg.hand_process_scale)),
+                    (int(top_w * cfg.top_hand_process_scale), int(top_h * cfg.top_hand_process_scale)),
                     interpolation=cv2.INTER_LINEAR,
                 )
             top_result = hands_top.process(cv2.cvtColor(top_detect_frame, cv2.COLOR_BGR2RGB))
@@ -252,17 +268,32 @@ def main() -> None:
             if top_result.multi_hand_landmarks:
                 top_lms = top_result.multi_hand_landmarks[0]
                 detect_h_t, detect_w_t = top_detect_frame.shape[:2]
-                _, _, top_mid_raw, _ = get_thumb_index_data(top_lms, detect_w_t, detect_h_t)
-                top_mid_raw = map_point_to_full_res(top_mid_raw, cfg.hand_process_scale, top_w, top_h)
+                if cfg.top_use_palm_center:
+                    top_mid_raw = get_palm_center_xy(top_lms, detect_w_t, detect_h_t)
+                else:
+                    _, _, top_mid_raw, _ = get_thumb_index_data(top_lms, detect_w_t, detect_h_t)
+                top_mid_raw = map_point_to_full_res(top_mid_raw, cfg.top_hand_process_scale, top_w, top_h)
                 if smooth_top_mid is None:
                     smooth_top_mid = [float(top_mid_raw[0]), float(top_mid_raw[1])]
                 else:
-                    smooth_top_mid[0] = (1.0 - cfg.smooth_alpha) * smooth_top_mid[0] + cfg.smooth_alpha * top_mid_raw[0]
-                    smooth_top_mid[1] = (1.0 - cfg.smooth_alpha) * smooth_top_mid[1] + cfg.smooth_alpha * top_mid_raw[1]
-                top_mid = (int(smooth_top_mid[0]), int(smooth_top_mid[1]))
+                    smooth_top_mid[0] = (1.0 - cfg.top_smooth_alpha) * smooth_top_mid[0] + cfg.top_smooth_alpha * top_mid_raw[0]
+                    smooth_top_mid[1] = (1.0 - cfg.top_smooth_alpha) * smooth_top_mid[1] + cfg.top_smooth_alpha * top_mid_raw[1]
+
+                top_x, top_y = smooth_top_mid[0], smooth_top_mid[1]
+                if last_top_filtered_xy is not None and cfg.top_predict_beta > 0.0:
+                    dx = top_x - last_top_filtered_xy[0]
+                    dy = top_y - last_top_filtered_xy[1]
+                    top_x += cfg.top_predict_beta * dx
+                    top_y += cfg.top_predict_beta * dy
+
+                top_x = max(0.0, min(float(top_w - 1), top_x))
+                top_y = max(0.0, min(float(top_h - 1), top_y))
+                top_mid = (int(top_x), int(top_y))
+                last_top_filtered_xy = (smooth_top_mid[0], smooth_top_mid[1])
                 hover_key = hit_test(top_mid[0], top_mid[1], targets)
             else:
                 smooth_top_mid = None
+                last_top_filtered_xy = None
 
             # Side Astra: pinch/depth gate/state/BLE/prop.
             side_detect_frame = enhance_for_hand_detection(side_frame, clahe) if cfg.side_use_clahe else side_frame

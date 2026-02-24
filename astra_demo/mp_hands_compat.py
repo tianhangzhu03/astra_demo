@@ -52,11 +52,12 @@ class _LegacyHandsFactory:
         self._hands_module = hands_module
         self.HAND_CONNECTIONS = hands_module.HAND_CONNECTIONS
 
-    def Hands(self, max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5):
+    def Hands(self, max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5, **kwargs):
         return self._hands_module.Hands(
             max_num_hands=max_num_hands,
             min_detection_confidence=min_detection_confidence,
             min_tracking_confidence=min_tracking_confidence,
+            **kwargs,
         )
 
 
@@ -93,7 +94,8 @@ class _TaskHandsFactory:
         self._BaseOptions = mp_tasks_python.BaseOptions
         self._vision = vision
 
-    def Hands(self, max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5):
+    def Hands(self, max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5, **kwargs):
+        _ = kwargs  # Tasks API does not use legacy-only kwargs (e.g. model_complexity).
         options = self._vision.HandLandmarkerOptions(
             base_options=self._BaseOptions(model_asset_path=self._model_path),
             running_mode=self._vision.RunningMode.IMAGE,
