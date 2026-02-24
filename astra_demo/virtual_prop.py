@@ -2,15 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Tuple
+from typing import ClassVar, Optional, Tuple
 
 import cv2
 import numpy as np
 
 
-class VirtualPropType(str, Enum):
-    BALL = "BALL"
-    CUBE = "CUBE"
+class VirtualPropHardness(str, Enum):
+    SOFT = "SOFT"
+    MEDIUM = "MEDIUM"
+    HARD = "HARD"
 
 
 class VirtualPropState(str, Enum):
@@ -21,7 +22,7 @@ class VirtualPropState(str, Enum):
 
 @dataclass
 class VirtualProp:
-    prop_type: VirtualPropType = VirtualPropType.BALL
+    hardness: VirtualPropHardness = VirtualPropHardness.MEDIUM
     state: VirtualPropState = VirtualPropState.IDLE
     dock_xy: Tuple[float, float] = (120.0, 120.0)
     pos_xy: Tuple[float, float] = (120.0, 120.0)
@@ -32,11 +33,19 @@ class VirtualProp:
     size_held: int = 28
     follow_fill_alpha: float = 0.45
 
-    _release_start_ms: int = 0
-    _release_from_xy: Tuple[float, float] = (120.0, 120.0)
+    _HARDNESS_ORDER: ClassVar[tuple[VirtualPropHardness, ...]] = (
+        VirtualPropHardness.SOFT,
+        VirtualPropHardness.MEDIUM,
+        VirtualPropHardness.HARD,
+    )
 
+    def cycle_hardness(self) -> None:
+        idx = self._HARDNESS_ORDER.index(self.hardness)
+        self.hardness = self._HARDNESS_ORDER[(idx + 1) % len(self._HARDNESS_ORDER)]
+
+    # Backward-compatible alias (old main.py used toggle_type()).
     def toggle_type(self) -> None:
-        self.prop_type = VirtualPropType.CUBE if self.prop_type == VirtualPropType.BALL else VirtualPropType.BALL
+        self.cycle_hardness()
 
     def set_dock(self, xy: Tuple[float, float]) -> None:
         self.dock_xy = xy
@@ -58,6 +67,21 @@ class VirtualProp:
             (1.0 - self.follow_alpha) * py + self.follow_alpha * hand_f[1],
         )
 
+    def hardness_freq_hz(self, soft: int, medium: int, hard: int) -> int:
+        if self.hardness == VirtualPropHardness.SOFT:
+            return soft
+        if self.hardness == VirtualPropHardness.MEDIUM:
+            return medium
+        return hard
+
+    def _colors(self) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        # BGR colors: soft->green, medium->orange, hard->red
+        if self.hardness == VirtualPropHardness.SOFT:
+            return (70, 220, 90), (40, 185, 60)
+        if self.hardness == VirtualPropHardness.MEDIUM:
+            return (40, 190, 250), (20, 140, 220)
+        return (50, 70, 245), (20, 40, 210)
+
     def draw(self, frame: np.ndarray) -> None:
         if self.state == VirtualPropState.HIDDEN:
             return
@@ -68,21 +92,16 @@ class VirtualProp:
         held = self.state == VirtualPropState.HELD
 
         size = self.size_held if held else self.size_follow
-        color = (30, 80, 245) if held else (40, 220, 245)
+        idle_color, held_color = self._colors()
+        color = held_color if held else idle_color
 
         # Light shadow to improve depth cue in demo.
         cv2.circle(frame, (x + 6, y + 6), size, (40, 40, 40), -1)
-
-        if self.prop_type == VirtualPropType.BALL:
-            cv2.circle(frame, (x, y), size, color, -1)
-        else:
-            p1 = (x - size, y - size)
-            p2 = (x + size, y + size)
-            cv2.rectangle(frame, p1, p2, color, -1)
+        cv2.circle(frame, (x, y), size, color, -1)
 
         cv2.putText(
             frame,
-            f"PROP:{self.prop_type.value}/{self.state.value}",
+            f"PROP:{self.hardness.value}/{self.state.value}",
             (14, 110),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.55,

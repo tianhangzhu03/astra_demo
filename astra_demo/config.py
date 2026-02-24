@@ -38,7 +38,7 @@ class AstraDemoConfig:
     # Consecutive frames required to exit a state; larger is more stable but releases slower.
     exit_frames: int = 2
     # Midpoint smoothing factor (0~1); larger is more responsive, smaller is smoother.
-    smooth_alpha: float = 0.55
+    smooth_alpha: float = 0.65
 
     frame_width: int = 640
     frame_height: int = 480
@@ -66,7 +66,7 @@ class AstraDemoConfig:
     # Whether the prop remains visible after release (True=keep, False=hide).
     prop_idle_visible: bool = True
     # Virtual prop follow smoothing factor; larger is more responsive, smaller is smoother.
-    prop_follow_alpha: float = 0.32
+    prop_follow_alpha: float = 0.45
     # V-key toggle cooldown (ms); prevents repeated toggles when holding the key.
     prop_toggle_cooldown_ms: int = 220
 
@@ -74,9 +74,13 @@ class AstraDemoConfig:
     ble_mac_address: str = "FE:56:9B:F0:CF:0E"
     ble_uuid: str = "120062c4-b99e-4141-9439-c4f9db977899"
     ble_fixed_volts: int = 2500
+    # Fallback/default frequency (Hz). Runtime frequency is selected by prop hardness profile.
     ble_fixed_freq: int = 100
+    ble_freq_soft: int = 20
+    ble_freq_medium: int = 50
+    ble_freq_hard: int = 100
     # One-shot vibration pulse duration after a grab trigger (ms).
-    ble_pulse_ms: int = 2000
+    ble_pulse_ms: int = 1000
 
     # Return animation duration after release (ms).
     release_return_ms: int = 200

@@ -40,6 +40,7 @@ class BleController:
 
         self.trigger_on = False
         self.target_key = 0
+        self.pulse_freq = config.fixed_freq
 
         self._thread: threading.Thread | None = None
 
@@ -55,9 +56,11 @@ class BleController:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2.0)
 
-    def set_target(self, trigger_on: bool, key: int) -> None:
+    def set_target(self, trigger_on: bool, key: int, freq_hz: int | None = None) -> None:
         self.trigger_on = trigger_on
         self.target_key = key
+        if freq_hz is not None:
+            self.pulse_freq = int(freq_hz)
 
     def _thread_entry(self) -> None:
         if platform.system() == "Windows":
@@ -106,11 +109,12 @@ class BleController:
                 while self.running and client.is_connected:
                     cur_trigger = self.trigger_on
                     cur_key = self.target_key
+                    cur_freq = self.pulse_freq
                     now_t = loop_time()
 
                     if cur_trigger and not last_pressed:
                         if cur_key > 0:
-                            packet = create_packet(self._cfg.fixed_volts, self._cfg.fixed_freq, start=True)
+                            packet = create_packet(self._cfg.fixed_volts, cur_freq, start=True)
                             await client.write_gatt_char(write_char.uuid, packet, response=True)
                             pulse_active = True
                             pulse_end_t = now_t + max(0.0, self._cfg.pulse_ms / 1000.0)

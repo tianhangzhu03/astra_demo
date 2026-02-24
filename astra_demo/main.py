@@ -180,6 +180,11 @@ def main() -> None:
     prop.size_follow = cfg.prop_size_follow
     prop.size_held = cfg.prop_size_held
     prop.follow_alpha = cfg.prop_follow_alpha
+    hardness_freq_map = {
+        "SOFT": cfg.ble_freq_soft,
+        "MEDIUM": cfg.ble_freq_medium,
+        "HARD": cfg.ble_freq_hard,
+    }
 
     smooth_top_mid: Optional[list[float]] = None
     smooth_side_mid: Optional[list[float]] = None
@@ -187,7 +192,7 @@ def main() -> None:
     last_toggle_ms = 0
     prop_initialized = False
 
-    print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit, 'v' to toggle prop type.")
+    print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit, 'v' to cycle hardness.")
 
     try:
         while True:
@@ -303,7 +308,8 @@ def main() -> None:
             )
             grab_ctx = out.context
 
-            ble.set_target(out.trigger_on, out.target_key)
+            active_freq = hardness_freq_map.get(prop.hardness.value, cfg.ble_fixed_freq)
+            ble.set_target(out.trigger_on, out.target_key, freq_hz=active_freq)
             prop.update(
                 hand_xy=top_mid,
                 grab_active=out.trigger_on,
@@ -367,7 +373,16 @@ def main() -> None:
             )
             cv2.putText(
                 side_frame,
-                "Keys: q=quit, v=toggle ball/cube",
+                f"Haptic:{prop.hardness.value} {active_freq}Hz {cfg.ble_fixed_volts}",
+                (14, 130),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.52,
+                (255, 255, 255),
+                2,
+            )
+            cv2.putText(
+                side_frame,
+                "Keys: q=quit, v=cycle hardness(soft/med/hard)",
                 (14, side_h - 14),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.52,
@@ -392,7 +407,7 @@ def main() -> None:
             if key == ord("v"):
                 now_ms = int(time.time() * 1000)
                 if now_ms - last_toggle_ms >= cfg.prop_toggle_cooldown_ms:
-                    prop.toggle_type()
+                    prop.cycle_hardness()
                     last_toggle_ms = now_ms
 
             if side_error:
