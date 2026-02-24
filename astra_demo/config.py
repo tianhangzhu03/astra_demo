@@ -15,7 +15,7 @@ class AstraDemoConfig:
     # Thumb-index pinch enter threshold (normalized distance); larger is easier to trigger.
     pinch_enter: float = 0.085
     # Pinch exit threshold (should be > enter to form hysteresis); larger is harder to release.
-    pinch_exit: float = 0.110
+    pinch_exit: float = 0.130
 
     # Side-view hand detection minimum confidence; higher reduces false positives but may miss detections.
     side_min_detection_confidence: float = 0.5
@@ -36,7 +36,7 @@ class AstraDemoConfig:
     # Consecutive frames required to enter a state; larger is more stable but adds latency.
     enter_frames: int = 2
     # Consecutive frames required to exit a state; larger is more stable but releases slower.
-    exit_frames: int = 2
+    exit_frames: int = 3
     # Midpoint smoothing factor (0~1); larger is more responsive, smaller is smoother.
     smooth_alpha: float = 0.65
 
