@@ -37,6 +37,37 @@ def get_palm_center_xy(hand_lms, w: int, h: int) -> tuple[int, int]:
     return (cx, cy)
 
 
+def get_landmark_bbox_center_xy(hand_lms, w: int, h: int, landmark_ids: Optional[Tuple[int, ...]] = None) -> tuple[int, int]:
+    ids = landmark_ids if landmark_ids is not None else tuple(range(len(hand_lms.landmark)))
+    xs = [hand_lms.landmark[i].x for i in ids]
+    ys = [hand_lms.landmark[i].y for i in ids]
+    cx = int(((min(xs) + max(xs)) * 0.5) * w)
+    cy = int(((min(ys) + max(ys)) * 0.5) * h)
+    return (cx, cy)
+
+
+def get_top_fist_anchor_xy(hand_lms, w: int, h: int) -> tuple[int, int]:
+    # Robust anchor for top-view fist/hand-back pose:
+    # fuse palm center + palm bbox center + whole-hand bbox center.
+    palm_ids = (0, 5, 9, 13, 17)
+    palm_center = get_palm_center_xy(hand_lms, w, h)
+    palm_box_center = get_landmark_bbox_center_xy(hand_lms, w, h, palm_ids)
+    hand_box_center = get_landmark_bbox_center_xy(hand_lms, w, h)
+    x = int(0.50 * palm_center[0] + 0.30 * palm_box_center[0] + 0.20 * hand_box_center[0])
+    y = int(0.50 * palm_center[1] + 0.30 * palm_box_center[1] + 0.20 * hand_box_center[1])
+    return (x, y)
+
+
+def clamp_point_step(prev_xy: Tuple[int, int], cur_xy: Tuple[int, int], max_step_px: float) -> tuple[int, int]:
+    dx = float(cur_xy[0] - prev_xy[0])
+    dy = float(cur_xy[1] - prev_xy[1])
+    dist = math.hypot(dx, dy)
+    if dist <= max_step_px or dist <= 1e-6:
+        return cur_xy
+    s = max_step_px / dist
+    return (int(prev_xy[0] + dx * s), int(prev_xy[1] + dy * s))
+
+
 def compute_targets(w: int, h: int, panel_w_ratio: float, panel_h_ratio: float, panel_y_ratio: float) -> dict[int, tuple[int, int, int, int]]:
     rows = 2
     cols = 2
@@ -208,11 +239,16 @@ def main() -> None:
 
     smooth_top_mid: Optional[list[float]] = None
     last_top_filtered_xy: Optional[tuple[float, float]] = None
+    last_top_visible_mid: Optional[Tuple[int, int]] = None
+    top_lost_frames = 999
     smooth_side_mid: Optional[list[float]] = None
     checked_alignment = False
     last_toggle_ms = 0
     prop_initialized = False
     last_grab_trigger = False
+    top_visual_hold_frames = 8
+    top_grab_hold_frames = 4
+    top_jump_limit_px = 120.0
 
     print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit, 'v' to cycle hardness.")
 
@@ -265,14 +301,18 @@ def main() -> None:
             top_result = hands_top.process(cv2.cvtColor(top_detect_frame, cv2.COLOR_BGR2RGB))
             hover_key = 0
             top_mid: Optional[Tuple[int, int]] = None
+            top_detected_now = False
             if top_result.multi_hand_landmarks:
+                top_detected_now = True
                 top_lms = top_result.multi_hand_landmarks[0]
                 detect_h_t, detect_w_t = top_detect_frame.shape[:2]
                 if cfg.top_use_palm_center:
-                    top_mid_raw = get_palm_center_xy(top_lms, detect_w_t, detect_h_t)
+                    top_mid_raw = get_top_fist_anchor_xy(top_lms, detect_w_t, detect_h_t)
                 else:
                     _, _, top_mid_raw, _ = get_thumb_index_data(top_lms, detect_w_t, detect_h_t)
                 top_mid_raw = map_point_to_full_res(top_mid_raw, cfg.top_hand_process_scale, top_w, top_h)
+                if last_top_visible_mid is not None:
+                    top_mid_raw = clamp_point_step(last_top_visible_mid, top_mid_raw, top_jump_limit_px)
                 if smooth_top_mid is None:
                     smooth_top_mid = [float(top_mid_raw[0]), float(top_mid_raw[1])]
                 else:
@@ -290,10 +330,19 @@ def main() -> None:
                 top_y = max(0.0, min(float(top_h - 1), top_y))
                 top_mid = (int(top_x), int(top_y))
                 last_top_filtered_xy = (smooth_top_mid[0], smooth_top_mid[1])
-                hover_key = hit_test(top_mid[0], top_mid[1], targets)
+                last_top_visible_mid = top_mid
+                top_lost_frames = 0
             else:
-                smooth_top_mid = None
-                last_top_filtered_xy = None
+                top_lost_frames += 1
+                if last_top_visible_mid is not None and top_lost_frames <= top_visual_hold_frames:
+                    top_mid = last_top_visible_mid
+                else:
+                    smooth_top_mid = None
+                    last_top_filtered_xy = None
+                    last_top_visible_mid = None
+
+            if top_mid is not None:
+                hover_key = hit_test(top_mid[0], top_mid[1], targets)
 
             # Side Astra: pinch/depth gate/state/BLE/prop.
             side_detect_frame = enhance_for_hand_detection(side_frame, clahe) if cfg.side_use_clahe else side_frame
@@ -342,7 +391,7 @@ def main() -> None:
                 depth_exit_mm=cfg.depth_exit_mm,
                 enter_frames=cfg.enter_frames,
                 exit_frames=cfg.exit_frames,
-                top_hand_present=(top_mid is not None),
+                top_hand_present=(top_detected_now or (last_top_visible_mid is not None and top_lost_frames <= top_grab_hold_frames)),
             )
             grab_ctx = out.context
 

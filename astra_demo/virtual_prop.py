@@ -59,12 +59,22 @@ class VirtualProp:
             self.state = VirtualPropState.IDLE if keep_idle_visible else VirtualPropState.HIDDEN
             return
 
+        entering_held = self.state != VirtualPropState.HELD
         self.state = VirtualPropState.HELD
         hand_f = (float(hand_xy[0]), float(hand_xy[1]))
+        if entering_held:
+            # Snap on the first held frame to avoid visible catch-up lag.
+            self.pos_xy = hand_f
+            return
+
         px, py = self.pos_xy
+        dist = float(np.hypot(hand_f[0] - px, hand_f[1] - py))
+        # Adaptive alpha: move faster when far away, preserve smoothness for small jitter.
+        alpha_boost = min(0.22, dist / 220.0)
+        alpha = min(0.92, max(0.0, self.follow_alpha + alpha_boost))
         self.pos_xy = (
-            (1.0 - self.follow_alpha) * px + self.follow_alpha * hand_f[0],
-            (1.0 - self.follow_alpha) * py + self.follow_alpha * hand_f[1],
+            (1.0 - alpha) * px + alpha * hand_f[0],
+            (1.0 - alpha) * py + alpha * hand_f[1],
         )
 
     def hardness_freq_hz(self, soft: int, medium: int, hard: int) -> int:
