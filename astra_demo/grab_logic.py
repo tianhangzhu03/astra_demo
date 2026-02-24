@@ -81,9 +81,11 @@ def update_grab_state(
     depth_exit_mm: int,
     enter_frames: int,
     exit_frames: int,
+    top_hand_present: Optional[bool] = None,
 ) -> GrabOutput:
     next_ctx = GrabContext(**ctx.__dict__)
     next_ctx.hover_key = hover_key
+    top_present = (hover_key > 0) if top_hand_present is None else bool(top_hand_present)
 
     next_ctx.top_pinch_state = _update_pinch_state(
         prev=ctx.top_pinch_state,
@@ -99,27 +101,28 @@ def update_grab_state(
     )
 
     if next_ctx.state == GrabState.IDLE:
-        if next_ctx.top_pinch_state and hover_key > 0:
+        if next_ctx.top_pinch_state and top_present:
             next_ctx.top_enter_count += 1
         else:
             next_ctx.top_enter_count = 0
 
         if next_ctx.top_enter_count >= enter_frames:
             next_ctx.state = GrabState.ARMED
-            next_ctx.armed_key = hover_key
+            next_ctx.armed_key = hover_key if hover_key > 0 else 0
             next_ctx.top_enter_count = 0
             next_ctx.depth_enter_count = 0
             next_ctx.exit_count = 0
 
     elif next_ctx.state == GrabState.ARMED:
-        if not next_ctx.top_pinch_state or hover_key == 0:
+        if not next_ctx.top_pinch_state or (not top_present):
             next_ctx.state = GrabState.IDLE
             next_ctx.armed_key = 0
             next_ctx.depth_enter_count = 0
             next_ctx.exit_count = 0
             next_ctx.grab_key = 0
         else:
-            next_ctx.armed_key = hover_key
+            if hover_key > 0:
+                next_ctx.armed_key = hover_key
             if next_ctx.depth_gate_state:
                 next_ctx.depth_enter_count += 1
             else:
@@ -147,8 +150,8 @@ def update_grab_state(
     if next_ctx.state != GrabState.GRAB:
         next_ctx.grab_key = 0
 
-    trigger_on = next_ctx.state == GrabState.GRAB and next_ctx.grab_key > 0
-    target_key = next_ctx.grab_key if trigger_on else 0
+    trigger_on = next_ctx.state == GrabState.GRAB
+    target_key = next_ctx.grab_key if (trigger_on and next_ctx.grab_key > 0) else 0
     return GrabOutput(
         context=next_ctx,
         trigger_on=trigger_on,

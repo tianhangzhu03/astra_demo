@@ -185,6 +185,11 @@ def main() -> None:
         "MEDIUM": cfg.ble_freq_medium,
         "HARD": cfg.ble_freq_hard,
     }
+    hardness_pulse_map = {
+        "SOFT": cfg.ble_pulse_soft_ms,
+        "MEDIUM": cfg.ble_pulse_medium_ms,
+        "HARD": cfg.ble_pulse_hard_ms,
+    }
 
     smooth_top_mid: Optional[list[float]] = None
     smooth_side_mid: Optional[list[float]] = None
@@ -306,6 +311,7 @@ def main() -> None:
                 depth_exit_mm=cfg.depth_exit_mm,
                 enter_frames=cfg.enter_frames,
                 exit_frames=cfg.exit_frames,
+                top_hand_present=(top_mid is not None),
             )
             grab_ctx = out.context
 
@@ -318,7 +324,8 @@ def main() -> None:
             last_grab_trigger = out.trigger_on
 
             active_freq = hardness_freq_map.get(prop.hardness.value, cfg.ble_fixed_freq)
-            ble.set_target(out.trigger_on, out.target_key, freq_hz=active_freq)
+            active_pulse_ms = hardness_pulse_map.get(prop.hardness.value, cfg.ble_pulse_ms)
+            ble.set_target(out.trigger_on, out.target_key, freq_hz=active_freq, pulse_ms=active_pulse_ms)
             prop.update(
                 hand_xy=top_mid,
                 grab_active=out.trigger_on,
@@ -382,7 +389,7 @@ def main() -> None:
             )
             cv2.putText(
                 side_frame,
-                f"Haptic:{prop.hardness.value} {active_freq}Hz {cfg.ble_fixed_volts}",
+                f"Haptic:{prop.hardness.value} {active_freq}Hz {cfg.ble_fixed_volts} {active_pulse_ms}ms",
                 (14, 130),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.52,
