@@ -27,6 +27,33 @@ def get_thumb_index_data(hand_lms, w: int, h: int) -> tuple[tuple[int, int], tup
     return (tx, ty), (ix, iy), (mx, my), dist
 
 
+def get_thumb_index_cluster_data(hand_lms, w: int, h: int) -> tuple[tuple[int, int], tuple[int, int], tuple[int, int], float]:
+    # More robust pinch anchors: blend fingertip with nearby joints to reduce landmark jitter/occlusion sensitivity.
+    thumb_spec = ((4, 0.60), (3, 0.28), (2, 0.12))
+    index_spec = ((8, 0.55), (7, 0.30), (6, 0.15))
+
+    def _anchor(spec):
+        sx = 0.0
+        sy = 0.0
+        sw = 0.0
+        for idx, wt in spec:
+            lm = hand_lms.landmark[idx]
+            sx += lm.x * wt
+            sy += lm.y * wt
+            sw += wt
+        return sx / sw, sy / sw
+
+    tx_n, ty_n = _anchor(thumb_spec)
+    ix_n, iy_n = _anchor(index_spec)
+    mx_n, my_n = (tx_n + ix_n) * 0.5, (ty_n + iy_n) * 0.5
+
+    tx, ty = int(tx_n * w), int(ty_n * h)
+    ix, iy = int(ix_n * w), int(iy_n * h)
+    mx, my = int(mx_n * w), int(my_n * h)
+    dist = math.hypot(ix_n - tx_n, iy_n - ty_n)
+    return (tx, ty), (ix, iy), (mx, my), dist
+
+
 def get_palm_center_xy(hand_lms, w: int, h: int) -> tuple[int, int]:
     # Palm landmarks are usually more stable than fingertips in top view.
     palm_ids = (0, 5, 9, 13, 17)
@@ -66,6 +93,12 @@ def clamp_point_step(prev_xy: Tuple[int, int], cur_xy: Tuple[int, int], max_step
         return cur_xy
     s = max_step_px / dist
     return (int(prev_xy[0] + dx * s), int(prev_xy[1] + dy * s))
+
+
+def blend_points(a: Tuple[int, int], b: Tuple[int, int], w_b: float) -> tuple[int, int]:
+    w_b = max(0.0, min(1.0, w_b))
+    w_a = 1.0 - w_b
+    return (int(a[0] * w_a + b[0] * w_b), int(a[1] * w_a + b[1] * w_b))
 
 
 def compute_targets(w: int, h: int, panel_w_ratio: float, panel_h_ratio: float, panel_y_ratio: float) -> dict[int, tuple[int, int, int, int]]:
@@ -301,16 +334,19 @@ def main() -> None:
             top_result = hands_top.process(cv2.cvtColor(top_detect_frame, cv2.COLOR_BGR2RGB))
             hover_key = 0
             top_mid: Optional[Tuple[int, int]] = None
+            top_prop_xy: Optional[Tuple[int, int]] = None
             top_detected_now = False
             if top_result.multi_hand_landmarks:
                 top_detected_now = True
                 top_lms = top_result.multi_hand_landmarks[0]
                 detect_h_t, detect_w_t = top_detect_frame.shape[:2]
+                _, _, top_pinch_proxy_raw, _ = get_thumb_index_cluster_data(top_lms, detect_w_t, detect_h_t)
                 if cfg.top_use_palm_center:
                     top_mid_raw = get_top_fist_anchor_xy(top_lms, detect_w_t, detect_h_t)
                 else:
                     _, _, top_mid_raw, _ = get_thumb_index_data(top_lms, detect_w_t, detect_h_t)
                 top_mid_raw = map_point_to_full_res(top_mid_raw, cfg.top_hand_process_scale, top_w, top_h)
+                top_pinch_proxy_raw = map_point_to_full_res(top_pinch_proxy_raw, cfg.top_hand_process_scale, top_w, top_h)
                 if last_top_visible_mid is not None:
                     top_mid_raw = clamp_point_step(last_top_visible_mid, top_mid_raw, top_jump_limit_px)
                 if smooth_top_mid is None:
@@ -332,10 +368,14 @@ def main() -> None:
                 last_top_filtered_xy = (smooth_top_mid[0], smooth_top_mid[1])
                 last_top_visible_mid = top_mid
                 top_lost_frames = 0
+                # Prop should sit closer to thumb-index pinch area, not the fist/palm center.
+                top_prop_xy = blend_points(top_mid, top_pinch_proxy_raw, 0.72)
+                top_prop_xy = clamp_point_step(top_mid, top_prop_xy, 150.0)
             else:
                 top_lost_frames += 1
                 if last_top_visible_mid is not None and top_lost_frames <= top_visual_hold_frames:
                     top_mid = last_top_visible_mid
+                    top_prop_xy = top_mid
                 else:
                     smooth_top_mid = None
                     last_top_filtered_xy = None
@@ -343,6 +383,8 @@ def main() -> None:
 
             if top_mid is not None:
                 hover_key = hit_test(top_mid[0], top_mid[1], targets)
+            if top_prop_xy is None:
+                top_prop_xy = top_mid
 
             # Side Astra: pinch/depth gate/state/BLE/prop.
             side_detect_frame = enhance_for_hand_detection(side_frame, clahe) if cfg.side_use_clahe else side_frame
@@ -358,7 +400,7 @@ def main() -> None:
             if side_result.multi_hand_landmarks:
                 side_lms = side_result.multi_hand_landmarks[0]
                 detect_h_s, detect_w_s = side_detect_frame.shape[:2]
-                side_thumb, side_index, side_mid_raw, side_pinch_dist = get_thumb_index_data(side_lms, detect_w_s, detect_h_s)
+                side_thumb, side_index, side_mid_raw, side_pinch_dist = get_thumb_index_cluster_data(side_lms, detect_w_s, detect_h_s)
                 side_thumb = map_point_to_full_res(side_thumb, cfg.hand_process_scale, side_w, side_h)
                 side_index = map_point_to_full_res(side_index, cfg.hand_process_scale, side_w, side_h)
                 side_mid_raw = map_point_to_full_res(side_mid_raw, cfg.hand_process_scale, side_w, side_h)
@@ -407,7 +449,7 @@ def main() -> None:
             active_pulse_ms = hardness_pulse_map.get(prop.hardness.value, cfg.ble_pulse_ms)
             ble.set_target(out.trigger_on, out.target_key, freq_hz=active_freq, pulse_ms=active_pulse_ms)
             prop.update(
-                hand_xy=top_mid,
+                hand_xy=top_prop_xy,
                 grab_active=out.trigger_on,
                 now_ms=side_bundle.timestamp_ms,
                 keep_idle_visible=cfg.prop_idle_visible,
