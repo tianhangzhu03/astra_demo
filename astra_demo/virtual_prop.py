@@ -92,7 +92,7 @@ class VirtualProp:
             return (40, 190, 250), (20, 140, 220)
         return (50, 70, 245), (20, 40, 210)
 
-    def draw(self, frame: np.ndarray) -> None:
+    def draw(self, frame: np.ndarray, show_label: bool = True) -> None:
         if self.state == VirtualPropState.HIDDEN:
             return
 
@@ -109,12 +109,13 @@ class VirtualProp:
         cv2.circle(frame, (x + 6, y + 6), size, (40, 40, 40), -1)
         cv2.circle(frame, (x, y), size, color, -1)
 
-        cv2.putText(
-            frame,
-            f"PROP:{self.hardness.value}/{self.state.value}",
-            (14, 110),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.55,
-            (255, 255, 255),
-            2,
-        )
+        if show_label:
+            cv2.putText(
+                frame,
+                f"PROP:{self.hardness.value}/{self.state.value}",
+                (14, 110),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (255, 255, 255),
+                2,
+            )

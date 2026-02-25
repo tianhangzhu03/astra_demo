@@ -457,7 +457,7 @@ def main() -> None:
 
             # Keep top view clean: grid test only, do not visualize grab state.
             draw_panel(top_frame, targets, hover_key=hover_key, grab_key=0)
-            prop.draw(top_frame)
+            prop.draw(top_frame, show_label=False)
 
             range_vis = build_depth_range_view(
                 side_depth,
