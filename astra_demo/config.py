@@ -87,11 +87,11 @@ class AstraDemoConfig:
     # Fallback/default frequency (Hz). Runtime frequency is selected by prop hardness profile.
     ble_fixed_freq: int = 100
     ble_freq_soft: int = 20
-    ble_freq_medium: int = 60
-    ble_freq_hard: int = 100
-    ble_pulse_soft_ms: int = 1000
-    ble_pulse_medium_ms: int = 1500
-    ble_pulse_hard_ms: int = 2000
+    ble_freq_medium: int = 100
+    ble_freq_hard: int = 200
+    ble_pulse_soft_ms: int = 2000
+    ble_pulse_medium_ms: int = 500
+    ble_pulse_hard_ms: int = 200
     # Fallback one-shot vibration pulse duration after a grab trigger (ms).
     ble_pulse_ms: int = 1000
 
