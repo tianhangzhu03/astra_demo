@@ -85,12 +85,8 @@ class VirtualProp:
         return hard
 
     def _colors(self) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
-        # BGR colors: soft->green, medium->orange, hard->red
-        if self.hardness == VirtualPropHardness.SOFT:
-            return (70, 220, 90), (40, 185, 60)
-        if self.hardness == VirtualPropHardness.MEDIUM:
-            return (40, 190, 250), (20, 140, 220)
-        return (50, 70, 245), (20, 40, 210)
+        # Keep the same visual color across hardness modes; haptics differ, visuals stay constant.
+        return (40, 190, 250), (20, 140, 220)
 
     def draw(self, frame: np.ndarray, show_label: bool = True) -> None:
         if self.state == VirtualPropState.HIDDEN:
