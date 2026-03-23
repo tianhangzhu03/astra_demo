@@ -21,7 +21,7 @@ class AstraDemoConfig:
     # Thumb-index pinch enter threshold (normalized distance); larger is easier to trigger.
     pinch_enter: float = 0.085
     # Pinch exit threshold (should be > enter to form hysteresis); smaller releases earlier after opening fingers.
-    pinch_exit: float = 0.100
+    pinch_exit: float = 0.094
     # Keep pinch "closed" for a few frames when side tracking briefly drops during fast motion.
     pinch_missing_hold_frames: int = 4
     # Median window for side-view pinch distance; a short window suppresses single-frame spikes during fast motion.
@@ -59,8 +59,8 @@ class AstraDemoConfig:
 
     # Consecutive frames required to enter a state; larger is more stable but adds latency.
     enter_frames: int = 2
-    # Consecutive frames required to exit a state; larger is more stable but releases slower.
-    exit_frames: int = 2
+    # Consecutive frames required to exit a state; 1 makes deliberate finger opening feel more immediate.
+    exit_frames: int = 1
     # Midpoint smoothing factor (0~1); larger is more responsive, smaller is smoother.
     smooth_alpha: float = 0.65
 

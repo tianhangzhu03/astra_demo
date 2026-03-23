@@ -189,6 +189,25 @@ class GrabLogicTests(unittest.TestCase):
         self.assertEqual(out.context.state, GrabState.IDLE)
         self.assertFalse(out.trigger_on)
 
+    def test_open_pinch_releases_immediately_when_exit_frames_is_one(self):
+        ctx = GrabContext(state=GrabState.GRAB, top_pinch_state=True, depth_gate_state=True, grab_key=3, armed_key=3)
+
+        out = update_grab_state(
+            ctx,
+            pinch_dist=0.120,
+            depth_at_mid_mm=510,
+            hover_key=3,
+            pinch_enter=0.075,
+            pinch_exit=0.094,
+            depth_enter_mm=520,
+            depth_exit_mm=560,
+            enter_frames=2,
+            exit_frames=1,
+            pinch_missing_hold_frames=4,
+        )
+        self.assertEqual(out.context.state, GrabState.IDLE)
+        self.assertFalse(out.trigger_on)
+
 
 if __name__ == "__main__":
     unittest.main()
