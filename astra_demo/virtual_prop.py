@@ -62,8 +62,8 @@ class VirtualProp:
         )
 
     def _colors(self) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
-        # Blue material for the demo prop.
-        return (250, 160, 70), (170, 95, 25)
+        # Slightly desaturated blue so the prop looks closer to a real coated/plastic sphere.
+        return (228, 142, 56), (116, 66, 28)
 
     @staticmethod
     def _blend_color(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[int, int, int]:
@@ -111,7 +111,7 @@ class VirtualProp:
             lineType=cv2.LINE_AA,
         )
         shadow_patch = cv2.GaussianBlur(shadow_patch, (0, 0), sigmaX=max(2.0, size_ss * 0.10))
-        patch_ss = cv2.addWeighted(shadow_patch, 0.24, patch_ss, 0.76, 0.0)
+        patch_ss = cv2.addWeighted(shadow_patch, 0.20, patch_ss, 0.80, 0.0)
 
         overlay = patch_ss.copy()
         sphere_mask = np.zeros(patch_ss.shape[:2], dtype=np.uint8)
@@ -122,30 +122,36 @@ class VirtualProp:
         ny = (yy - cy_ss) / max(1.0, float(size_ss))
         rr = np.sqrt(nx * nx + ny * ny)
 
-        light_x = -0.45
-        light_y = -0.55
+        light_x = -0.38
+        light_y = -0.52
         light_term = np.clip(1.0 - np.sqrt((nx - light_x) ** 2 + (ny - light_y) ** 2), 0.0, 1.0)
         core_term = np.clip(1.0 - rr, 0.0, 1.0)
         bottom_shade = np.clip((ny + 0.25) * 0.55, 0.0, 0.55)
+        fresnel = np.clip((rr - 0.18) / 0.82, 0.0, 1.0)
+        shoulder_light = np.clip(1.0 - np.sqrt((nx + 0.05) ** 2 + (ny + 0.10) ** 2), 0.0, 1.0)
 
         color_field = np.zeros_like(patch_ss, dtype=np.float32)
         base = np.array(base_color, dtype=np.float32)
         rim = np.array(rim_color, dtype=np.float32)
-        bright = np.array(self._blend_color(base_color, (255, 228, 205), 0.52), dtype=np.float32)
+        bright = np.array(self._blend_color(base_color, (250, 226, 205), 0.26), dtype=np.float32)
+        cool_fill = np.array(self._blend_color(base_color, (255, 208, 156), 0.12), dtype=np.float32)
 
         for c in range(3):
             color_field[:, :, c] = rim[c] * np.clip(rr, 0.0, 1.0) + base[c] * core_term
-            color_field[:, :, c] = color_field[:, :, c] * (1.0 - bottom_shade) + bright[c] * (light_term * 0.75)
+            color_field[:, :, c] = color_field[:, :, c] * (1.0 - bottom_shade)
+            color_field[:, :, c] = color_field[:, :, c] + cool_fill[c] * (shoulder_light * 0.22)
+            color_field[:, :, c] = color_field[:, :, c] + bright[c] * (light_term * 0.48)
+            color_field[:, :, c] = color_field[:, :, c] - rim[c] * (fresnel * 0.08)
 
         mask = sphere_mask > 0
         overlay[mask] = np.clip(color_field[mask], 0, 255).astype(np.uint8)
 
-        # Glossy specular highlight.
-        spec_color = self._blend_color(base_color, (255, 232, 210), 0.58)
+        # Smaller glossy highlight to keep the sphere realistic instead of cartoon-like.
+        spec_color = self._blend_color(base_color, (255, 236, 220), 0.34)
         cv2.circle(
             overlay,
             (int(cx_ss - size_ss * 0.36), int(cy_ss - size_ss * 0.40)),
-            max(2, int(size_ss * 0.24)),
+            max(2, int(size_ss * 0.18)),
             spec_color,
             -1,
             lineType=cv2.LINE_AA,
@@ -154,26 +160,28 @@ class VirtualProp:
             overlay,
             (int(cx_ss - size_ss * 0.18), int(cy_ss - size_ss * 0.15)),
             max(1, int(size_ss * 0.08)),
-            self._blend_color(base_color, (255, 240, 220), 0.70),
+            self._blend_color(base_color, (255, 242, 230), 0.38),
             -1,
             lineType=cv2.LINE_AA,
         )
+        highlight_overlay = cv2.GaussianBlur(overlay, (0, 0), max(1.2, size_ss * 0.035))
+        overlay = cv2.addWeighted(highlight_overlay, 0.20, overlay, 0.80, 0.0)
 
-        # Curved reflection stripe to make the sphere look less flat.
+        # Subtle curved reflection to avoid the "painted circle" look.
         cv2.ellipse(
             overlay,
             (int(cx_ss - size_ss * 0.10), int(cy_ss - size_ss * 0.02)),
-            (int(size_ss * 0.34), int(size_ss * 0.58)),
+            (int(size_ss * 0.28), int(size_ss * 0.52)),
             28,
-            215,
-            302,
-            self._blend_color(base_color, (255, 220, 190), 0.42),
-            max(1, int(size_ss * 0.05)),
+            220,
+            296,
+            self._blend_color(base_color, (255, 228, 210), 0.18),
+            max(1, int(size_ss * 0.03)),
             lineType=cv2.LINE_AA,
         )
 
-        # Darker blue edge instead of a white rim so the sphere stays volumetric without looking sticker-like.
-        rim_outline = self._blend_color(rim_color, base_color, 0.18)
+        # Darker rim and a little bottom occlusion keep volume without a fake white edge.
+        rim_outline = self._blend_color(rim_color, base_color, 0.08)
         cv2.circle(overlay, (cx_ss, cy_ss), size_ss, rim_outline, max(1, ss), lineType=cv2.LINE_AA)
         cv2.ellipse(
             overlay,
@@ -182,7 +190,7 @@ class VirtualProp:
             0,
             10,
             170,
-            self._blend_color(rim_color, base_color, 0.22),
+            self._blend_color(rim_color, base_color, 0.12),
             max(1, int(size_ss * 0.04)),
             lineType=cv2.LINE_AA,
         )

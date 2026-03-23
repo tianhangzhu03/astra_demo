@@ -94,8 +94,8 @@ class AstraDemoConfig:
 
     # Virtual prop idle/follow radius in pixels.
     prop_size_follow: int = 44
-    # Virtual prop held radius in pixels; slightly larger to confirm a successful grab visually.
-    prop_size_held: int = 58
+    # Virtual prop held radius in pixels; only slightly larger so the grab feedback stays subtle.
+    prop_size_held: int = 50
     # Whether the prop remains visible after release (True=keep, False=hide).
     prop_idle_visible: bool = True
     # Virtual prop follow smoothing factor; larger is more responsive, smaller is smoother.
