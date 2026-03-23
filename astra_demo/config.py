@@ -4,9 +4,9 @@ from dataclasses import dataclass
 @dataclass
 class AstraDemoConfig:
     # Top camera ID (used for grid hit testing).
-    top_camera_id: int = 2
+    top_camera_id: int = 1
     # Side color camera ID (used for hand detection and rendering).
-    side_color_camera_id: int = 1
+    side_color_camera_id: int = 2
 
     # Target capture FPS; higher values reduce perceived latency but increase CPU usage.
     camera_fps: int = 30
@@ -71,6 +71,8 @@ class AstraDemoConfig:
     # Depth standalone window size; smaller reduces rendering cost.
     depth_view_width: int = 520
     depth_view_height: int = 390
+    # Whether to show the side RGB debug window; disabling it reduces rendering overhead and visual clutter.
+    show_side_color_window: bool = False
 
     # Virtual prop idle/follow radius in pixels.
     prop_size_follow: int = 34

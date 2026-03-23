@@ -416,10 +416,11 @@ def main() -> None:
                     smooth_side_mid[1] = (1.0 - cfg.smooth_alpha) * smooth_side_mid[1] + cfg.smooth_alpha * side_mid_raw[1]
                 side_mid = (int(smooth_side_mid[0]), int(smooth_side_mid[1]))
 
-                cv2.circle(side_frame, side_thumb, 8, (255, 200, 0), -1)
-                cv2.circle(side_frame, side_index, 8, (0, 255, 0), -1)
-                cv2.circle(side_frame, side_mid, 6, (255, 255, 255), -1)
-                cv2.line(side_frame, side_thumb, side_index, (255, 255, 0), 2)
+                if cfg.show_side_color_window:
+                    cv2.circle(side_frame, side_thumb, 8, (255, 200, 0), -1)
+                    cv2.circle(side_frame, side_index, 8, (0, 255, 0), -1)
+                    cv2.circle(side_frame, side_mid, 6, (255, 255, 255), -1)
+                    cv2.line(side_frame, side_thumb, side_index, (255, 255, 0), 2)
                 side_pinch_cm = session_logger.norm_to_cm(side_pinch_dist)
             else:
                 smooth_side_mid = None
@@ -484,60 +485,61 @@ def main() -> None:
             )
 
             side_error = getattr(side_cam, "get_error", lambda: None)()
-            if side_error:
+            if side_error and cfg.show_side_color_window:
                 cv2.putText(side_frame, side_error, (14, 136), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 0, 255), 2)
 
-            # Side window overlay (decision plane)
-            ble_color = (0, 255, 0) if ble.is_connected else (0, 0, 255)
-            cv2.putText(side_frame, f"BLE: {ble.status_msg}", (14, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.6, ble_color, 2)
-            cv2.putText(
-                side_frame,
-                f"Subject:{session_logger.subject_id}",
-                (14, 52),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.58,
-                (255, 255, 255),
-                2,
-            )
-            cv2.putText(
-                side_frame,
-                f"SidePinch:{side_pinch_cm:.2f}cm" if side_pinch_cm is not None else "SidePinch:-",
-                (14, 78),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
-                (255, 255, 255),
-                2,
-            )
-            cv2.putText(
-                side_frame,
-                f"SideDepth(mm):{side_depth_at_mid if side_depth_at_mid is not None else '-'} Gate:BYPASS",
-                (14, 104),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
-                (0, 255, 255),
-                2,
-            )
-            cv2.putText(
-                side_frame,
-                f"Haptic: fixed {cfg.ble_fixed_freq}Hz {cfg.ble_fixed_volts}V {cfg.ble_pulse_ms}ms",
-                (14, 130),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.52,
-                (255, 255, 255),
-                2,
-            )
-            cv2.putText(
-                side_frame,
-                f"CSV:{session_logger.path.name}",
-                (14, side_h - 14),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.46,
-                (255, 255, 255),
-                2,
-            )
+            if cfg.show_side_color_window:
+                ble_color = (0, 255, 0) if ble.is_connected else (0, 0, 255)
+                cv2.putText(side_frame, f"BLE: {ble.status_msg}", (14, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.6, ble_color, 2)
+                cv2.putText(
+                    side_frame,
+                    f"Subject:{session_logger.subject_id}",
+                    (14, 52),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.58,
+                    (255, 255, 255),
+                    2,
+                )
+                cv2.putText(
+                    side_frame,
+                    f"SidePinch:{side_pinch_cm:.2f}cm" if side_pinch_cm is not None else "SidePinch:-",
+                    (14, 78),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.55,
+                    (255, 255, 255),
+                    2,
+                )
+                cv2.putText(
+                    side_frame,
+                    f"SideDepth(mm):{side_depth_at_mid if side_depth_at_mid is not None else '-'} Gate:BYPASS",
+                    (14, 104),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.55,
+                    (0, 255, 255),
+                    2,
+                )
+                cv2.putText(
+                    side_frame,
+                    f"Haptic: fixed {cfg.ble_fixed_freq}Hz {cfg.ble_fixed_volts}V {cfg.ble_pulse_ms}ms",
+                    (14, 130),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.52,
+                    (255, 255, 255),
+                    2,
+                )
+                cv2.putText(
+                    side_frame,
+                    f"CSV:{session_logger.path.name}",
+                    (14, side_h - 14),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.46,
+                    (255, 255, 255),
+                    2,
+                )
 
             cv2.imshow("Top Camera - 3x3 Grid Test", top_frame)
-            cv2.imshow("Side Astra - Grab + BLE + Virtual Prop", side_frame)
+            if cfg.show_side_color_window:
+                cv2.imshow("Side Astra - Grab + BLE + Virtual Prop", side_frame)
             cv2.imshow(
                 "Depth Range View",
                 cv2.resize(
