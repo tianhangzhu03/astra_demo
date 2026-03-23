@@ -91,41 +91,103 @@ class VirtualProp:
         patch = frame[y0:y1, x0:x1].copy()
         cx = x - x0
         cy = y - y0
+        ss = 2
+        patch_ss = cv2.resize(patch, None, fx=ss, fy=ss, interpolation=cv2.INTER_LINEAR)
+        cx_ss = cx * ss
+        cy_ss = cy * ss
+        size_ss = size * ss
 
-        # Soft drop shadow.
-        shadow_patch = patch.copy()
-        cv2.circle(shadow_patch, (cx + 8, cy + 10), int(size * 1.02), (18, 18, 18), -1)
-        shadow_patch = cv2.GaussianBlur(shadow_patch, (0, 0), sigmaX=max(2.0, size * 0.18))
-        patch = cv2.addWeighted(shadow_patch, 0.20, patch, 0.80, 0.0)
-
-        # Radial body shading.
-        overlay = patch.copy()
-        for i in range(size, 0, -1):
-            t = 1.0 - (i / max(1.0, float(size)))
-            shade = self._blend_color(rim_color, base_color, t)
-            cv2.circle(overlay, (cx, cy), i, shade, -1, lineType=cv2.LINE_AA)
-
-        # Directional highlight.
-        highlight_center = (int(cx - size * 0.34), int(cy - size * 0.34))
-        highlight_color = self._blend_color((255, 255, 255), base_color, 0.78)
-        for i in range(max(2, int(size * 0.42)), 0, -1):
-            cv2.circle(overlay, highlight_center, i, highlight_color, -1, lineType=cv2.LINE_AA)
-            overlay[:] = cv2.addWeighted(overlay, 0.92, patch, 0.08, 0.0)
-
-        # Subtle rim and bottom contact cue.
-        cv2.circle(overlay, (cx, cy), size, (245, 245, 245), 1, lineType=cv2.LINE_AA)
+        # Soft drop shadow with slightly elongated perspective.
+        shadow_patch = patch_ss.copy()
         cv2.ellipse(
-            overlay,
-            (cx, int(cy + size * 0.18)),
-            (int(size * 0.72), int(size * 0.32)),
+            shadow_patch,
+            (cx_ss + int(size_ss * 0.16), cy_ss + int(size_ss * 0.28)),
+            (int(size_ss * 0.98), int(size_ss * 0.72)),
             0,
             0,
-            180,
-            self._blend_color(rim_color, (255, 255, 255), 0.20),
-            2,
+            360,
+            (16, 16, 16),
+            -1,
             lineType=cv2.LINE_AA,
         )
-        frame[y0:y1, x0:x1] = overlay
+        shadow_patch = cv2.GaussianBlur(shadow_patch, (0, 0), sigmaX=max(2.0, size_ss * 0.10))
+        patch_ss = cv2.addWeighted(shadow_patch, 0.24, patch_ss, 0.76, 0.0)
+
+        overlay = patch_ss.copy()
+        sphere_mask = np.zeros(patch_ss.shape[:2], dtype=np.uint8)
+        cv2.circle(sphere_mask, (cx_ss, cy_ss), size_ss, 255, -1, lineType=cv2.LINE_AA)
+
+        yy, xx = np.mgrid[0:patch_ss.shape[0], 0:patch_ss.shape[1]]
+        nx = (xx - cx_ss) / max(1.0, float(size_ss))
+        ny = (yy - cy_ss) / max(1.0, float(size_ss))
+        rr = np.sqrt(nx * nx + ny * ny)
+
+        light_x = -0.45
+        light_y = -0.55
+        light_term = np.clip(1.0 - np.sqrt((nx - light_x) ** 2 + (ny - light_y) ** 2), 0.0, 1.0)
+        core_term = np.clip(1.0 - rr, 0.0, 1.0)
+        bottom_shade = np.clip((ny + 0.25) * 0.55, 0.0, 0.55)
+
+        color_field = np.zeros_like(patch_ss, dtype=np.float32)
+        base = np.array(base_color, dtype=np.float32)
+        rim = np.array(rim_color, dtype=np.float32)
+        bright = np.array(self._blend_color((255, 255, 255), base_color, 0.72), dtype=np.float32)
+
+        for c in range(3):
+            color_field[:, :, c] = rim[c] * np.clip(rr, 0.0, 1.0) + base[c] * core_term
+            color_field[:, :, c] = color_field[:, :, c] * (1.0 - bottom_shade) + bright[c] * (light_term * 0.75)
+
+        mask = sphere_mask > 0
+        overlay[mask] = np.clip(color_field[mask], 0, 255).astype(np.uint8)
+
+        # Glossy specular highlight.
+        spec_color = self._blend_color((255, 255, 255), base_color, 0.88)
+        cv2.circle(
+            overlay,
+            (int(cx_ss - size_ss * 0.36), int(cy_ss - size_ss * 0.40)),
+            max(2, int(size_ss * 0.24)),
+            spec_color,
+            -1,
+            lineType=cv2.LINE_AA,
+        )
+        cv2.circle(
+            overlay,
+            (int(cx_ss - size_ss * 0.18), int(cy_ss - size_ss * 0.15)),
+            max(1, int(size_ss * 0.08)),
+            self._blend_color((255, 255, 255), base_color, 0.92),
+            -1,
+            lineType=cv2.LINE_AA,
+        )
+
+        # Curved reflection stripe to make the sphere look less flat.
+        cv2.ellipse(
+            overlay,
+            (int(cx_ss - size_ss * 0.10), int(cy_ss - size_ss * 0.02)),
+            (int(size_ss * 0.34), int(size_ss * 0.58)),
+            28,
+            215,
+            302,
+            self._blend_color((255, 255, 255), base_color, 0.82),
+            max(1, int(size_ss * 0.05)),
+            lineType=cv2.LINE_AA,
+        )
+
+        # Crisp rim + subtle occlusion at the bottom.
+        cv2.circle(overlay, (cx_ss, cy_ss), size_ss, (248, 248, 248), max(1, ss), lineType=cv2.LINE_AA)
+        cv2.ellipse(
+            overlay,
+            (cx_ss, int(cy_ss + size_ss * 0.16)),
+            (int(size_ss * 0.70), int(size_ss * 0.30)),
+            0,
+            10,
+            170,
+            self._blend_color(rim_color, (255, 255, 255), 0.18),
+            max(1, int(size_ss * 0.04)),
+            lineType=cv2.LINE_AA,
+        )
+
+        patch_final = cv2.resize(overlay, (patch.shape[1], patch.shape[0]), interpolation=cv2.INTER_AREA)
+        frame[y0:y1, x0:x1] = patch_final
 
         if show_label:
             cv2.putText(

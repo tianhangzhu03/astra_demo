@@ -9,6 +9,10 @@ class AstraDemoConfig:
     side_color_camera_id: int = 2
     # Use the configured camera IDs directly instead of silently falling back to other camera indices.
     strict_camera_ids: bool = True
+    # Mirror the top camera horizontally; rear-phone top view usually wants False.
+    top_mirror_horizontal: bool = False
+    # Mirror the side RGB and depth views together so operator motion feels natural.
+    side_mirror_horizontal: bool = True
 
     # Target capture FPS; higher values reduce perceived latency but increase CPU usage.
     camera_fps: int = 30

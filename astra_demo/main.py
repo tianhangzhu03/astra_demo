@@ -323,13 +323,20 @@ def main() -> None:
                 time.sleep(0.01)
                 continue
 
-            top_frame = cv2.flip(top_frame_raw.copy(), 1)
-            side_frame = cv2.flip(side_color_raw.copy(), 1)
+            top_frame = top_frame_raw.copy()
+            if cfg.top_mirror_horizontal:
+                top_frame = cv2.flip(top_frame, 1)
+
+            side_frame = side_color_raw.copy()
+            if cfg.side_mirror_horizontal:
+                side_frame = cv2.flip(side_frame, 1)
             if side_bundle is None:
                 side_depth = np.zeros((side_frame.shape[0], side_frame.shape[1]), dtype=np.uint16)
                 side_timestamp_ms = now_ms
             else:
-                side_depth = cv2.flip(side_bundle.depth_mm.copy(), 1)
+                side_depth = side_bundle.depth_mm.copy()
+                if cfg.side_mirror_horizontal:
+                    side_depth = cv2.flip(side_depth, 1)
                 side_timestamp_ms = side_bundle.timestamp_ms
 
             if not checked_alignment:
