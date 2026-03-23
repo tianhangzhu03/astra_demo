@@ -7,6 +7,8 @@ class AstraDemoConfig:
     top_camera_id: int = 1
     # Side color camera ID (used for hand detection and rendering).
     side_color_camera_id: int = 2
+    # Use the configured camera IDs directly instead of silently falling back to other camera indices.
+    strict_camera_ids: bool = True
 
     # Target capture FPS; higher values reduce perceived latency but increase CPU usage.
     camera_fps: int = 30
@@ -71,8 +73,10 @@ class AstraDemoConfig:
     # Depth standalone window size; smaller reduces rendering cost.
     depth_view_width: int = 520
     depth_view_height: int = 390
-    # Whether to show the side RGB debug window; disabling it reduces rendering overhead and visual clutter.
-    show_side_color_window: bool = False
+    # Show the side RGB window used by the operator to monitor pinch behavior.
+    show_side_color_window: bool = True
+    # Show the pseudo-color depth preview window; disabling it reduces render cost.
+    show_depth_window: bool = False
 
     # Virtual prop idle/follow radius in pixels.
     prop_size_follow: int = 34

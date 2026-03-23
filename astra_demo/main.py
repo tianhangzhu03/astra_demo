@@ -178,9 +178,10 @@ def enhance_for_hand_detection(frame_bgr, clahe):
     return cv2.GaussianBlur(enhanced, (3, 3), 0)
 
 
-def open_uvc_camera(preferred_id: int, width: int, height: int, fps: int, label: str):
+def open_uvc_camera(preferred_id: int, width: int, height: int, fps: int, label: str, strict_id: bool):
     tried = []
-    for cam_id in [preferred_id, 0, 1, 2, 3, 4]:
+    candidate_ids = [preferred_id] if strict_id else [preferred_id, 0, 1, 2, 3, 4]
+    for cam_id in candidate_ids:
         if cam_id in tried:
             continue
         tried.append(cam_id)
@@ -195,7 +196,8 @@ def open_uvc_camera(preferred_id: int, width: int, height: int, fps: int, label:
             print(f"[CAM] {label} use id={cam_id}")
             return cap
         cap.release()
-    raise RuntimeError(f"{label} open failed. tried ids={tried}")
+    mode = "strict" if strict_id else "fallback"
+    raise RuntimeError(f"{label} open failed in {mode} mode. tried ids={tried}")
 
 
 def map_point_to_full_res(pt: tuple[int, int], scale: float, full_w: int, full_h: int) -> tuple[int, int]:
@@ -241,10 +243,24 @@ def main() -> None:
     )
     ble.start()
 
-    top_cap = open_uvc_camera(cfg.top_camera_id, cfg.frame_width, cfg.frame_height, cfg.camera_fps, "top(phone)")
+    top_cap = open_uvc_camera(
+        cfg.top_camera_id,
+        cfg.frame_width,
+        cfg.frame_height,
+        cfg.camera_fps,
+        "top(phone)",
+        strict_id=cfg.strict_camera_ids,
+    )
     side_cam = create_camera_source(fps=cfg.camera_fps)
     side_cam.start()
-    side_cap = open_uvc_camera(cfg.side_color_camera_id, cfg.frame_width, cfg.frame_height, cfg.camera_fps, "side(color-uvc)")
+    side_cap = open_uvc_camera(
+        cfg.side_color_camera_id,
+        cfg.frame_width,
+        cfg.frame_height,
+        cfg.camera_fps,
+        "side(color-uvc)",
+        strict_id=cfg.strict_camera_ids,
+    )
 
     mp_hands, _ = load_hands_api()
     hands_top = mp_hands.Hands(
@@ -468,21 +484,23 @@ def main() -> None:
             draw_panel(top_frame, targets)
             prop.draw(top_frame, show_label=False)
 
-            range_vis = build_depth_range_view(
-                side_depth,
-                depth_min_mm=cfg.depth_vis_min_mm,
-                depth_max_mm=cfg.depth_vis_max_mm,
-                marker_xy=side_mid,
-            )
-            cv2.putText(
-                range_vis,
-                f"Depth Range {cfg.depth_vis_min_mm//10}-{cfg.depth_vis_max_mm//10}cm",
-                (8, 18),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (255, 255, 255),
-                1,
-            )
+            range_vis = None
+            if cfg.show_depth_window:
+                range_vis = build_depth_range_view(
+                    side_depth,
+                    depth_min_mm=cfg.depth_vis_min_mm,
+                    depth_max_mm=cfg.depth_vis_max_mm,
+                    marker_xy=side_mid,
+                )
+                cv2.putText(
+                    range_vis,
+                    f"Depth Range {cfg.depth_vis_min_mm//10}-{cfg.depth_vis_max_mm//10}cm",
+                    (8, 18),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (255, 255, 255),
+                    1,
+                )
 
             side_error = getattr(side_cam, "get_error", lambda: None)()
             if side_error and cfg.show_side_color_window:
@@ -540,14 +558,15 @@ def main() -> None:
             cv2.imshow("Top Camera - 3x3 Grid Test", top_frame)
             if cfg.show_side_color_window:
                 cv2.imshow("Side Astra - Grab + BLE + Virtual Prop", side_frame)
-            cv2.imshow(
-                "Depth Range View",
-                cv2.resize(
-                    range_vis,
-                    (cfg.depth_view_width, cfg.depth_view_height),
-                    interpolation=cv2.INTER_NEAREST,
-                ),
-            )
+            if cfg.show_depth_window and range_vis is not None:
+                cv2.imshow(
+                    "Depth Range View",
+                    cv2.resize(
+                        range_vis,
+                        (cfg.depth_view_width, cfg.depth_view_height),
+                        interpolation=cv2.INTER_NEAREST,
+                    ),
+                )
 
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
