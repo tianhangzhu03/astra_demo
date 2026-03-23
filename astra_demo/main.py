@@ -290,8 +290,8 @@ def main() -> None:
     checked_alignment = False
     prop_initialized = False
     last_grab_trigger = False
-    top_visual_hold_frames = 8
-    top_grab_hold_frames = 4
+    top_visual_hold_frames = cfg.top_visual_hold_frames
+    top_grab_hold_frames = cfg.top_grab_hold_frames
     top_jump_limit_px = 120.0
     logged_side_resize = False
     last_wait_log_ms = 0

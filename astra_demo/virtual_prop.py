@@ -34,8 +34,13 @@ class VirtualProp:
         self.state = VirtualPropState.IDLE if visible else VirtualPropState.HIDDEN
 
     def update(self, hand_xy: Optional[Tuple[int, int]], grab_active: bool, now_ms: int, keep_idle_visible: bool = True) -> None:
-        if (not grab_active) or hand_xy is None:
+        if not grab_active:
             self.state = VirtualPropState.IDLE if keep_idle_visible else VirtualPropState.HIDDEN
+            return
+        if hand_xy is None:
+            # During fast top-view motion or zone crossing, keep the last held pose instead of dropping immediately.
+            if self.state != VirtualPropState.HELD:
+                self.state = VirtualPropState.IDLE if keep_idle_visible else VirtualPropState.HIDDEN
             return
 
         entering_held = self.state != VirtualPropState.HELD
@@ -57,8 +62,8 @@ class VirtualProp:
         )
 
     def _colors(self) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
-        # Keep the same visual appearance across all internal states.
-        return (40, 190, 250), (20, 140, 220)
+        # Blue material for the demo prop.
+        return (250, 160, 70), (170, 95, 25)
 
     @staticmethod
     def _blend_color(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[int, int, int]:

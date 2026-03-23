@@ -16,8 +16,8 @@ class AstraDemoConfig:
 
     # Thumb-index pinch enter threshold (normalized distance); larger is easier to trigger.
     pinch_enter: float = 0.085
-    # Pinch exit threshold (should be > enter to form hysteresis); larger is harder to release.
-    pinch_exit: float = 0.130
+    # Pinch exit threshold (should be > enter to form hysteresis); smaller releases earlier after opening fingers.
+    pinch_exit: float = 0.115
 
     # Side-view hand detection minimum confidence; higher reduces false positives but may miss detections.
     side_min_detection_confidence: float = 0.5
@@ -37,6 +37,10 @@ class AstraDemoConfig:
     top_predict_beta: float = 0.20
     # Use palm center (more stable in top view) instead of thumb-index midpoint for top XY.
     top_use_palm_center: bool = True
+    # Frames to keep the last top-view hand position when tracking drops briefly.
+    top_visual_hold_frames: int = 12
+    # Extra hold during active grab; larger helps avoid false visual drop while moving across zones.
+    top_grab_hold_frames: int = 8
 
     # Depth enter threshold (mm); smaller means the hand must be closer. Currently used as a soft gate.
     depth_enter_mm: int = 760
@@ -79,9 +83,9 @@ class AstraDemoConfig:
     show_depth_window: bool = False
 
     # Virtual prop idle/follow radius in pixels.
-    prop_size_follow: int = 34
-    # Virtual prop held radius in pixels; larger gives a minimal visual confirmation for vision-only trials.
-    prop_size_held: int = 44
+    prop_size_follow: int = 40
+    # Virtual prop held radius in pixels; slightly larger to confirm a successful grab visually.
+    prop_size_held: int = 52
     # Whether the prop remains visible after release (True=keep, False=hide).
     prop_idle_visible: bool = True
     # Virtual prop follow smoothing factor; larger is more responsive, smaller is smoother.
