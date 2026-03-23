@@ -178,16 +178,19 @@ def enhance_for_hand_detection(frame_bgr, clahe):
     return cv2.GaussianBlur(enhanced, (3, 3), 0)
 
 
-def open_uvc_camera(preferred_id: int, width: int, height: int, label: str):
+def open_uvc_camera(preferred_id: int, width: int, height: int, fps: int, label: str):
     tried = []
     for cam_id in [preferred_id, 0, 1, 2, 3, 4]:
         if cam_id in tried:
             continue
         tried.append(cam_id)
-        cap = cv2.VideoCapture(cam_id)
+        backend = cv2.CAP_DSHOW if platform == "win32" else cv2.CAP_ANY
+        cap = cv2.VideoCapture(cam_id, backend)
         if cap.isOpened():
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+            cap.set(cv2.CAP_PROP_FPS, fps)
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             print(f"[CAM] {label} use id={cam_id}")
             return cap
@@ -238,10 +241,10 @@ def main() -> None:
     )
     ble.start()
 
-    top_cap = open_uvc_camera(cfg.top_camera_id, cfg.frame_width, cfg.frame_height, "top(phone)")
+    top_cap = open_uvc_camera(cfg.top_camera_id, cfg.frame_width, cfg.frame_height, cfg.camera_fps, "top(phone)")
     side_cam = create_camera_source(fps=cfg.camera_fps)
     side_cam.start()
-    side_cap = open_uvc_camera(cfg.side_color_camera_id, cfg.frame_width, cfg.frame_height, "side(color-uvc)")
+    side_cap = open_uvc_camera(cfg.side_color_camera_id, cfg.frame_width, cfg.frame_height, cfg.camera_fps, "side(color-uvc)")
 
     mp_hands, _ = load_hands_api()
     hands_top = mp_hands.Hands(
@@ -274,6 +277,7 @@ def main() -> None:
     top_visual_hold_frames = 8
     top_grab_hold_frames = 4
     top_jump_limit_px = 120.0
+    logged_side_resize = False
 
     print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit.")
 
@@ -292,12 +296,19 @@ def main() -> None:
 
             if not checked_alignment:
                 if side_frame.shape[:2] != side_depth.shape[:2]:
-                    raise RuntimeError(
-                        "Side RGB(UVC)/Depth(OpenNI) size mismatch: "
+                    print(
+                        "[WARN] Side RGB(UVC)/Depth(OpenNI) size mismatch detected. "
                         f"rgb={side_frame.shape[:2]} depth={side_depth.shape[:2]}. "
-                        "Set side UVC camera resolution to match Astra depth stream."
+                        "RGB will be resized to depth resolution for alignment and lower latency."
                     )
                 checked_alignment = True
+
+            if side_frame.shape[:2] != side_depth.shape[:2]:
+                depth_h, depth_w = side_depth.shape[:2]
+                side_frame = cv2.resize(side_frame, (depth_w, depth_h), interpolation=cv2.INTER_LINEAR)
+                if not logged_side_resize:
+                    print(f"[INFO] Side RGB resized to {depth_w}x{depth_h} for aligned processing.")
+                    logged_side_resize = True
 
             top_h, top_w, _ = top_frame.shape
             side_h, side_w, _ = side_frame.shape
