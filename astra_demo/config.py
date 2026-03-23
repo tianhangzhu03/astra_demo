@@ -22,6 +22,10 @@ class AstraDemoConfig:
     pinch_enter: float = 0.085
     # Pinch exit threshold (should be > enter to form hysteresis); smaller releases earlier after opening fingers.
     pinch_exit: float = 0.100
+    # Keep pinch "closed" for a few frames when side tracking briefly drops during fast motion.
+    pinch_missing_hold_frames: int = 4
+    # Median window for side-view pinch distance; a short window suppresses single-frame spikes during fast motion.
+    pinch_median_window: int = 3
 
     # Side-view hand detection minimum confidence; higher reduces false positives but may miss detections.
     side_min_detection_confidence: float = 0.5
@@ -73,7 +77,7 @@ class AstraDemoConfig:
     # Top grid Y-offset ratio; larger moves the grid downward.
     grid_y_ratio: float = 0.10
     # Briefly hold the last valid zone when the top-view cursor flickers on a boundary.
-    hover_key_hold_frames: int = 3
+    hover_key_hold_frames: int = 4
 
     # Minimum depth visualization distance (mm); Astra hand demos typically use 180~1200.
     depth_vis_min_mm: int = 180

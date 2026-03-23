@@ -119,6 +119,76 @@ class GrabLogicTests(unittest.TestCase):
         self.assertEqual(ctx.state, GrabState.IDLE)
         self.assertFalse(out.trigger_on)
 
+    def test_short_missing_pinch_does_not_release_immediately(self):
+        ctx = GrabContext(state=GrabState.GRAB, top_pinch_state=True, depth_gate_state=True, grab_key=2, armed_key=2)
+
+        out = update_grab_state(
+            ctx,
+            pinch_dist=None,
+            depth_at_mid_mm=510,
+            hover_key=2,
+            pinch_enter=0.075,
+            pinch_exit=0.095,
+            depth_enter_mm=520,
+            depth_exit_mm=560,
+            enter_frames=2,
+            exit_frames=2,
+            pinch_missing_hold_frames=2,
+        )
+        ctx = out.context
+        self.assertEqual(ctx.state, GrabState.GRAB)
+        self.assertTrue(out.trigger_on)
+
+        out = update_grab_state(
+            ctx,
+            pinch_dist=None,
+            depth_at_mid_mm=510,
+            hover_key=2,
+            pinch_enter=0.075,
+            pinch_exit=0.095,
+            depth_enter_mm=520,
+            depth_exit_mm=560,
+            enter_frames=2,
+            exit_frames=2,
+            pinch_missing_hold_frames=2,
+        )
+        ctx = out.context
+        self.assertEqual(ctx.state, GrabState.GRAB)
+        self.assertTrue(out.trigger_on)
+
+        out = update_grab_state(
+            ctx,
+            pinch_dist=None,
+            depth_at_mid_mm=510,
+            hover_key=2,
+            pinch_enter=0.075,
+            pinch_exit=0.095,
+            depth_enter_mm=520,
+            depth_exit_mm=560,
+            enter_frames=2,
+            exit_frames=2,
+            pinch_missing_hold_frames=2,
+        )
+        ctx = out.context
+        self.assertEqual(ctx.state, GrabState.GRAB)
+        self.assertTrue(out.trigger_on)
+
+        out = update_grab_state(
+            ctx,
+            pinch_dist=None,
+            depth_at_mid_mm=510,
+            hover_key=2,
+            pinch_enter=0.075,
+            pinch_exit=0.095,
+            depth_enter_mm=520,
+            depth_exit_mm=560,
+            enter_frames=2,
+            exit_frames=2,
+            pinch_missing_hold_frames=2,
+        )
+        self.assertEqual(out.context.state, GrabState.IDLE)
+        self.assertFalse(out.trigger_on)
+
 
 if __name__ == "__main__":
     unittest.main()

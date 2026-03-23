@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import math
+from collections import deque
 from pathlib import Path
 from sys import platform
 import time
@@ -297,6 +298,7 @@ def main() -> None:
     last_wait_log_ms = 0
     last_nonzero_hover_key = 0
     hover_key_hold_count = 0
+    pinch_history = deque(maxlen=max(1, cfg.pinch_median_window))
 
     print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit.")
 
@@ -456,6 +458,7 @@ def main() -> None:
                 )
             side_result = hands_side.process(cv2.cvtColor(side_detect_frame, cv2.COLOR_BGR2RGB))
             side_pinch_dist: Optional[float] = None
+            side_pinch_for_logic: Optional[float] = None
             side_pinch_cm: Optional[float] = None
             side_mid: Optional[Tuple[int, int]] = None
             if side_result.multi_hand_landmarks:
@@ -478,16 +481,19 @@ def main() -> None:
                     cv2.circle(side_frame, side_index, 8, (0, 255, 0), -1)
                     cv2.circle(side_frame, side_mid, 6, (255, 255, 255), -1)
                     cv2.line(side_frame, side_thumb, side_index, (255, 255, 0), 2)
+                pinch_history.append(side_pinch_dist)
+                side_pinch_for_logic = float(np.median(np.asarray(pinch_history, dtype=np.float32)))
                 side_pinch_cm = session_logger.norm_to_cm(side_pinch_dist)
             else:
                 smooth_side_mid = None
+                pinch_history.clear()
 
             # Side camera now only provides pinch trigger.
             side_depth_at_mid = sample_depth_5x5(side_depth, side_mid) if side_mid else None
             depth_for_gate = max(1, cfg.depth_enter_mm - 1)
             out = update_grab_state(
                 ctx=grab_ctx,
-                pinch_dist=side_pinch_dist,
+                pinch_dist=side_pinch_for_logic,
                 depth_at_mid_mm=depth_for_gate,
                 hover_key=hover_key,
                 pinch_enter=cfg.pinch_enter,
@@ -496,6 +502,7 @@ def main() -> None:
                 depth_exit_mm=cfg.depth_exit_mm,
                 enter_frames=cfg.enter_frames,
                 exit_frames=cfg.exit_frames,
+                pinch_missing_hold_frames=cfg.pinch_missing_hold_frames,
                 top_hand_present=(top_detected_now or (last_top_visible_mid is not None and top_lost_frames <= top_grab_hold_frames)),
             )
             grab_ctx = out.context

@@ -131,7 +131,7 @@ class VirtualProp:
         color_field = np.zeros_like(patch_ss, dtype=np.float32)
         base = np.array(base_color, dtype=np.float32)
         rim = np.array(rim_color, dtype=np.float32)
-        bright = np.array(self._blend_color((255, 255, 255), base_color, 0.72), dtype=np.float32)
+        bright = np.array(self._blend_color(base_color, (255, 228, 205), 0.52), dtype=np.float32)
 
         for c in range(3):
             color_field[:, :, c] = rim[c] * np.clip(rr, 0.0, 1.0) + base[c] * core_term
@@ -141,7 +141,7 @@ class VirtualProp:
         overlay[mask] = np.clip(color_field[mask], 0, 255).astype(np.uint8)
 
         # Glossy specular highlight.
-        spec_color = self._blend_color((255, 255, 255), base_color, 0.88)
+        spec_color = self._blend_color(base_color, (255, 232, 210), 0.58)
         cv2.circle(
             overlay,
             (int(cx_ss - size_ss * 0.36), int(cy_ss - size_ss * 0.40)),
@@ -154,7 +154,7 @@ class VirtualProp:
             overlay,
             (int(cx_ss - size_ss * 0.18), int(cy_ss - size_ss * 0.15)),
             max(1, int(size_ss * 0.08)),
-            self._blend_color((255, 255, 255), base_color, 0.92),
+            self._blend_color(base_color, (255, 240, 220), 0.70),
             -1,
             lineType=cv2.LINE_AA,
         )
@@ -167,13 +167,14 @@ class VirtualProp:
             28,
             215,
             302,
-            self._blend_color((255, 255, 255), base_color, 0.82),
+            self._blend_color(base_color, (255, 220, 190), 0.42),
             max(1, int(size_ss * 0.05)),
             lineType=cv2.LINE_AA,
         )
 
-        # Crisp rim + subtle occlusion at the bottom.
-        cv2.circle(overlay, (cx_ss, cy_ss), size_ss, (248, 248, 248), max(1, ss), lineType=cv2.LINE_AA)
+        # Darker blue edge instead of a white rim so the sphere stays volumetric without looking sticker-like.
+        rim_outline = self._blend_color(rim_color, base_color, 0.18)
+        cv2.circle(overlay, (cx_ss, cy_ss), size_ss, rim_outline, max(1, ss), lineType=cv2.LINE_AA)
         cv2.ellipse(
             overlay,
             (cx_ss, int(cy_ss + size_ss * 0.16)),
@@ -181,7 +182,7 @@ class VirtualProp:
             0,
             10,
             170,
-            self._blend_color(rim_color, (255, 255, 255), 0.18),
+            self._blend_color(rim_color, base_color, 0.22),
             max(1, int(size_ss * 0.04)),
             lineType=cv2.LINE_AA,
         )

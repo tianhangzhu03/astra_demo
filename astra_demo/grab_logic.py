@@ -26,6 +26,7 @@ class GrabContext:
     top_enter_count: int = 0
     depth_enter_count: int = 0
     exit_count: int = 0
+    pinch_missing_count: int = 0
 
 
 @dataclass
@@ -81,18 +82,29 @@ def update_grab_state(
     depth_exit_mm: int,
     enter_frames: int,
     exit_frames: int,
+    pinch_missing_hold_frames: int = 0,
     top_hand_present: Optional[bool] = None,
 ) -> GrabOutput:
     next_ctx = GrabContext(**ctx.__dict__)
     next_ctx.hover_key = hover_key
     top_present = (hover_key > 0) if top_hand_present is None else bool(top_hand_present)
 
-    next_ctx.top_pinch_state = _update_pinch_state(
-        prev=ctx.top_pinch_state,
-        pinch_dist=pinch_dist,
-        enter=pinch_enter,
-        exit_=pinch_exit,
-    )
+    if pinch_dist is None:
+        hold_missing = (
+            ctx.top_pinch_state
+            and ctx.state in (GrabState.ARMED, GrabState.GRAB)
+            and ctx.pinch_missing_count < pinch_missing_hold_frames
+        )
+        next_ctx.top_pinch_state = hold_missing
+        next_ctx.pinch_missing_count = ctx.pinch_missing_count + 1 if hold_missing else 0
+    else:
+        next_ctx.top_pinch_state = _update_pinch_state(
+            prev=ctx.top_pinch_state,
+            pinch_dist=pinch_dist,
+            enter=pinch_enter,
+            exit_=pinch_exit,
+        )
+        next_ctx.pinch_missing_count = 0
     next_ctx.depth_gate_state = _update_depth_gate_state(
         prev=ctx.depth_gate_state,
         depth_mm=depth_at_mid_mm,
