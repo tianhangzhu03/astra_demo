@@ -2,16 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import ClassVar, Optional, Tuple
+from typing import Optional, Tuple
 
 import cv2
 import numpy as np
-
-
-class VirtualPropHardness(str, Enum):
-    SOFT = "SOFT"
-    MEDIUM = "MEDIUM"
-    HARD = "HARD"
 
 
 class VirtualPropState(str, Enum):
@@ -22,7 +16,6 @@ class VirtualPropState(str, Enum):
 
 @dataclass
 class VirtualProp:
-    hardness: VirtualPropHardness = VirtualPropHardness.MEDIUM
     state: VirtualPropState = VirtualPropState.IDLE
     dock_xy: Tuple[float, float] = (120.0, 120.0)
     pos_xy: Tuple[float, float] = (120.0, 120.0)
@@ -32,20 +25,6 @@ class VirtualProp:
     size_follow: int = 22
     size_held: int = 28
     follow_fill_alpha: float = 0.45
-
-    _HARDNESS_ORDER: ClassVar[tuple[VirtualPropHardness, ...]] = (
-        VirtualPropHardness.SOFT,
-        VirtualPropHardness.MEDIUM,
-        VirtualPropHardness.HARD,
-    )
-
-    def cycle_hardness(self) -> None:
-        idx = self._HARDNESS_ORDER.index(self.hardness)
-        self.hardness = self._HARDNESS_ORDER[(idx + 1) % len(self._HARDNESS_ORDER)]
-
-    # Backward-compatible alias (old main.py used toggle_type()).
-    def toggle_type(self) -> None:
-        self.cycle_hardness()
 
     def set_dock(self, xy: Tuple[float, float]) -> None:
         self.dock_xy = xy
@@ -77,16 +56,14 @@ class VirtualProp:
             (1.0 - alpha) * py + alpha * hand_f[1],
         )
 
-    def hardness_freq_hz(self, soft: int, medium: int, hard: int) -> int:
-        if self.hardness == VirtualPropHardness.SOFT:
-            return soft
-        if self.hardness == VirtualPropHardness.MEDIUM:
-            return medium
-        return hard
-
     def _colors(self) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
-        # Keep the same visual color across hardness modes; haptics differ, visuals stay constant.
+        # Keep the same visual appearance across all internal states.
         return (40, 190, 250), (20, 140, 220)
+
+    @staticmethod
+    def _blend_color(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[int, int, int]:
+        t = max(0.0, min(1.0, t))
+        return tuple(int((1.0 - t) * av + t * bv) for av, bv in zip(a, b))
 
     def draw(self, frame: np.ndarray, show_label: bool = True) -> None:
         if self.state == VirtualPropState.HIDDEN:
@@ -96,19 +73,59 @@ class VirtualProp:
         y = int(self.pos_xy[1])
 
         held = self.state == VirtualPropState.HELD
-
         size = self.size_held if held else self.size_follow
-        idle_color, held_color = self._colors()
-        color = held_color if held else idle_color
+        base_color, rim_color = self._colors()
+        pad = int(size * 1.8)
+        x0 = max(0, x - pad)
+        y0 = max(0, y - pad)
+        x1 = min(frame.shape[1], x + pad + 1)
+        y1 = min(frame.shape[0], y + pad + 1)
+        if x0 >= x1 or y0 >= y1:
+            return
 
-        # Light shadow to improve depth cue in demo.
-        cv2.circle(frame, (x + 6, y + 6), size, (40, 40, 40), -1)
-        cv2.circle(frame, (x, y), size, color, -1)
+        patch = frame[y0:y1, x0:x1].copy()
+        cx = x - x0
+        cy = y - y0
+
+        # Soft drop shadow.
+        shadow_patch = patch.copy()
+        cv2.circle(shadow_patch, (cx + 8, cy + 10), int(size * 1.02), (18, 18, 18), -1)
+        shadow_patch = cv2.GaussianBlur(shadow_patch, (0, 0), sigmaX=max(2.0, size * 0.18))
+        patch = cv2.addWeighted(shadow_patch, 0.20, patch, 0.80, 0.0)
+
+        # Radial body shading.
+        overlay = patch.copy()
+        for i in range(size, 0, -1):
+            t = 1.0 - (i / max(1.0, float(size)))
+            shade = self._blend_color(rim_color, base_color, t)
+            cv2.circle(overlay, (cx, cy), i, shade, -1, lineType=cv2.LINE_AA)
+
+        # Directional highlight.
+        highlight_center = (int(cx - size * 0.34), int(cy - size * 0.34))
+        highlight_color = self._blend_color((255, 255, 255), base_color, 0.78)
+        for i in range(max(2, int(size * 0.42)), 0, -1):
+            cv2.circle(overlay, highlight_center, i, highlight_color, -1, lineType=cv2.LINE_AA)
+            overlay[:] = cv2.addWeighted(overlay, 0.92, patch, 0.08, 0.0)
+
+        # Subtle rim and bottom contact cue.
+        cv2.circle(overlay, (cx, cy), size, (245, 245, 245), 1, lineType=cv2.LINE_AA)
+        cv2.ellipse(
+            overlay,
+            (cx, int(cy + size * 0.18)),
+            (int(size * 0.72), int(size * 0.32)),
+            0,
+            0,
+            180,
+            self._blend_color(rim_color, (255, 255, 255), 0.20),
+            2,
+            lineType=cv2.LINE_AA,
+        )
+        frame[y0:y1, x0:x1] = overlay
 
         if show_label:
             cv2.putText(
                 frame,
-                f"PROP:{self.hardness.value}/{self.state.value}",
+                "PROP",
                 (14, 110),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.55,

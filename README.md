@@ -111,6 +111,7 @@ python -c "from openni import openni2; print('openni2 ok')"
 - `ble_enabled = True/False`
 - `ble_mac_address`
 - `ble_uuid`
+- `ble_fixed_volts` / `ble_fixed_freq` / `ble_pulse_ms`（现在所有抓取共用这一组 medium 震动参数）
 
 调试视觉流程时建议先设 `ble_enabled=False`。
 
@@ -130,13 +131,25 @@ python -m astra_demo.camera_id_probe
 在仓库根目录执行：
 
 ```powershell
-python -m astra_demo.main
+python -m astra_demo.main --subject P01
 ```
 
 按键：
 
 - `q`：退出
-- `v`：切换虚拟物体（BALL/CUBE）
+
+每次运行都会自动生成一份新的 CSV：
+
+- 输出目录：`session_logs/`
+- 文件名示例：`grab_log_P01_20260322_214500.csv`
+- 字段：
+  - `timestamp_iso`
+  - `timestamp_ms`
+  - `target_key`
+  - `pinch_norm`
+  - `pinch_cm`
+
+其中 `pinch_cm = pinch_norm * pinch_plane_width_cm`，默认使用 `62.0 cm` 作为实验平面宽度。
 
 ---
 
@@ -151,18 +164,21 @@ python -m astra_demo.main
 - 低延迟：`hand_process_scale` / `smooth_alpha` / `depth_view_width` / `depth_view_height`
 - 九宫格：`grid_w_ratio` / `grid_h_ratio` / `grid_y_ratio`
 - 深度预览范围：`depth_vis_min_mm` / `depth_vis_max_mm`
-- 虚拟物体：`prop_size_follow` / `prop_size_held` / `prop_follow_alpha`
+- 虚拟物体：`prop_size_follow` / `prop_follow_alpha`
+- 实验距离换算：`pinch_plane_width_cm`
+- 实验日志：`default_subject_id` / `session_log_dir`
 
 当前仓库默认值已切为 Demo 预设（适合快速演示）：
 - 顶部九宫格更大：`grid_w_ratio=0.84`, `grid_h_ratio=0.78`
 - 深度门限降权：`depth_enter_mm=760`, `depth_exit_mm=860`
-- 虚拟物体更大：`prop_size_follow=42`, `prop_size_held=56`
+- 虚拟物体更大：`prop_size_follow=36`
 - 深度可视化为独立清晰窗口：`Depth Range View`
 - 默认显示范围已放宽（更容易看清手部）：`depth_vis_min_mm=180`, `depth_vis_max_mm=1200`
 - 默认深度不参与抓取判定：`use_depth_gate=False`（仅显示）
 - 侧面识别增强默认开启：`side_use_clahe=True`
-- 低延迟预设默认开启：`hand_process_scale=0.75`, `smooth_alpha=0.55`
-- 虚拟物体默认常驻，初始化为侧面普通位置（不固定九宫格）
+- 低延迟预设默认开启：`hand_process_scale=0.75`, `smooth_alpha=0.65`
+- 抓取成功后只发固定 medium 震动，不再切换 hardness 模式
+- 虚拟球保持统一外观，不再用颜色或大小变化提示抓取成功
 
 判定逻辑（侧视）：
 
@@ -175,7 +191,7 @@ python -m astra_demo.main
    - `IDLE -> ARMED`：捏合成立且顶部九宫格命中连续 `enter_frames`
    - `ARMED -> GRAB`：深度门成立连续 `enter_frames`
    - `GRAB -> IDLE`：捏合或深度释放连续 `exit_frames`
-5. `GRAB` 时触发 BLE 上升沿，释放时触发下降沿
+5. `GRAB` 时触发一次固定 medium 震动脉冲，并写入当前运行对应的 CSV 记录
 
 调参建议（按顺序）：
 
@@ -224,7 +240,8 @@ python -m unittest astra_demo.tests.test_grab_logic
 - `astra_demo/main.py`：主入口
 - `astra_demo/camera_source.py`：Astra OpenNI 采集（`start/read/stop`）
 - `astra_demo/grab_logic.py`：抓取状态机与 5x5 深度中值采样
-- `astra_demo/virtual_prop.py`：虚拟小球/小方块状态与渲染
+- `astra_demo/virtual_prop.py`：虚拟小球状态与渲染
 - `astra_demo/ble_client.py`：BLE 后台线程与边沿触发发包
+- `astra_demo/session_logger.py`：每次运行的抓取 CSV 日志
 - `astra_demo/config.py`：参数与硬件配置
 - `astra_demo/tests/test_grab_logic.py`：核心逻辑单元测试

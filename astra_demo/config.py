@@ -53,6 +53,9 @@ class AstraDemoConfig:
     frame_width: int = 640
     frame_height: int = 480
 
+    # Physical width of the calibrated interaction plane (cm); used to convert normalized pinch to centimeters.
+    pinch_plane_width_cm: float = 62.0
+
     # Top grid width ratio; larger makes the grid bigger.
     grid_w_ratio: float = 0.84
     # Top grid height ratio; larger makes the grid bigger.
@@ -69,31 +72,29 @@ class AstraDemoConfig:
     depth_view_width: int = 520
     depth_view_height: int = 390
 
-    # Virtual prop size in follow state; larger makes the ball/cube bigger.
-    prop_size_follow: int = 36
-    # Virtual prop size in held state; larger is more visually prominent while grabbing.
-    prop_size_held: int = 50
+    # Virtual prop idle/follow radius in pixels.
+    prop_size_follow: int = 34
+    # Virtual prop held radius in pixels; larger gives a minimal visual confirmation for vision-only trials.
+    prop_size_held: int = 44
     # Whether the prop remains visible after release (True=keep, False=hide).
     prop_idle_visible: bool = True
     # Virtual prop follow smoothing factor; larger is more responsive, smaller is smoother.
     prop_follow_alpha: float = 0.68
-    # V-key toggle cooldown (ms); prevents repeated toggles when holding the key.
-    prop_toggle_cooldown_ms: int = 220
 
     ble_enabled: bool = True
     ble_mac_address: str = "FE:56:9B:F0:CF:0E"
     ble_uuid: str = "120062c4-b99e-4141-9439-c4f9db977899"
+    # Single demo haptic voltage shared by every successful grab.
     ble_fixed_volts: int = 2500
-    # Fallback/default frequency (Hz). Runtime frequency is selected by prop hardness profile.
+    # Single demo haptic frequency (Hz) shared by every successful grab.
     ble_fixed_freq: int = 100
-    ble_freq_soft: int = 20
-    ble_freq_medium: int = 100
-    ble_freq_hard: int = 200
-    ble_pulse_soft_ms: int = 2000
-    ble_pulse_medium_ms: int = 500
-    ble_pulse_hard_ms: int = 200
-    # Fallback one-shot vibration pulse duration after a grab trigger (ms).
-    ble_pulse_ms: int = 1000
+    # Single one-shot vibration pulse duration (ms) shared by every successful grab.
+    ble_pulse_ms: int = 500
+
+    # Default participant label used when --subject is not provided.
+    default_subject_id: str = "subject01"
+    # Per-run CSV output directory (created under the repo root).
+    session_log_dir: str = "session_logs"
 
     # Return animation duration after release (ms).
     release_return_ms: int = 200

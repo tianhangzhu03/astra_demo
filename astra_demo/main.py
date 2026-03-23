@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import argparse
 import math
+from pathlib import Path
 from sys import platform
 import time
 from typing import Optional, Tuple
@@ -13,6 +15,7 @@ from .camera_source import create_camera_source
 from .config import AstraDemoConfig
 from .grab_logic import GrabContext, sample_depth_5x5, update_grab_state
 from .mp_hands_compat import load_hands_api
+from .session_logger import SessionLogger
 from .virtual_prop import VirtualProp
 
 
@@ -130,23 +133,9 @@ def hit_test(x: int, y: int, targets: dict[int, tuple[int, int, int, int]]) -> i
     return 0
 
 
-def draw_panel(frame, targets, hover_key: int, grab_key: int) -> None:
-    overlay = frame.copy()
+def draw_panel(frame, targets) -> None:
     for key, (x1, y1, x2, y2) in targets.items():
-        if key == grab_key:
-            fill = (40, 40, 245)
-        elif key == hover_key:
-            fill = (30, 220, 245)
-        else:
-            fill = (180, 180, 180)
-
-        cv2.rectangle(overlay, (x1, y1), (x2, y2), fill, -1)
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (230, 230, 230), 1)
-        cx = (x1 + x2) // 2
-        cy = (y1 + y2) // 2
-        cv2.putText(frame, str(key), (cx - 10, cy + 10), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
-
-    cv2.addWeighted(overlay, 0.22, frame, 0.78, 0, frame)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (230, 230, 230), 2)
 
 
 def build_depth_range_view(depth_mm, depth_min_mm: int, depth_max_mm: int, marker_xy: Optional[Tuple[int, int]]):
@@ -222,6 +211,20 @@ def main() -> None:
         print("[WARN] This Astra demo is intended for Windows + Astra SDK.")
 
     cfg = AstraDemoConfig()
+    parser = argparse.ArgumentParser(description="Top camera + side Astra grab demo")
+    parser.add_argument(
+        "--subject",
+        default=cfg.default_subject_id,
+        help="Participant label used in the per-run CSV filename and rows.",
+    )
+    args = parser.parse_args()
+
+    session_logger = SessionLogger(
+        subject_id=args.subject,
+        output_dir=Path(__file__).resolve().parents[1] / cfg.session_log_dir,
+        plane_width_cm=cfg.pinch_plane_width_cm,
+    )
+    print(f"[LOG] Writing grab records to {session_logger.path}")
 
     ble = BleController(
         BleConfig(
@@ -259,16 +262,6 @@ def main() -> None:
     prop.size_follow = cfg.prop_size_follow
     prop.size_held = cfg.prop_size_held
     prop.follow_alpha = cfg.prop_follow_alpha
-    hardness_freq_map = {
-        "SOFT": cfg.ble_freq_soft,
-        "MEDIUM": cfg.ble_freq_medium,
-        "HARD": cfg.ble_freq_hard,
-    }
-    hardness_pulse_map = {
-        "SOFT": cfg.ble_pulse_soft_ms,
-        "MEDIUM": cfg.ble_pulse_medium_ms,
-        "HARD": cfg.ble_pulse_hard_ms,
-    }
 
     smooth_top_mid: Optional[list[float]] = None
     last_top_filtered_xy: Optional[tuple[float, float]] = None
@@ -276,14 +269,13 @@ def main() -> None:
     top_lost_frames = 999
     smooth_side_mid: Optional[list[float]] = None
     checked_alignment = False
-    last_toggle_ms = 0
     prop_initialized = False
     last_grab_trigger = False
     top_visual_hold_frames = 8
     top_grab_hold_frames = 4
     top_jump_limit_px = 120.0
 
-    print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit, 'v' to cycle hardness.")
+    print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit.")
 
     try:
         while True:
@@ -396,6 +388,7 @@ def main() -> None:
                 )
             side_result = hands_side.process(cv2.cvtColor(side_detect_frame, cv2.COLOR_BGR2RGB))
             side_pinch_dist: Optional[float] = None
+            side_pinch_cm: Optional[float] = None
             side_mid: Optional[Tuple[int, int]] = None
             if side_result.multi_hand_landmarks:
                 side_lms = side_result.multi_hand_landmarks[0]
@@ -416,6 +409,7 @@ def main() -> None:
                 cv2.circle(side_frame, side_index, 8, (0, 255, 0), -1)
                 cv2.circle(side_frame, side_mid, 6, (255, 255, 255), -1)
                 cv2.line(side_frame, side_thumb, side_index, (255, 255, 0), 2)
+                side_pinch_cm = session_logger.norm_to_cm(side_pinch_dist)
             else:
                 smooth_side_mid = None
 
@@ -438,16 +432,19 @@ def main() -> None:
             grab_ctx = out.context
 
             if out.trigger_on and not last_grab_trigger:
-                pinch_str = f"{side_pinch_dist:.4f}" if side_pinch_dist is not None else "-"
+                pinch_cm = session_logger.log_grab(
+                    timestamp_ms=side_bundle.timestamp_ms,
+                    pinch_norm=side_pinch_dist,
+                    target_key=out.target_key,
+                )
+                pinch_str = f"{pinch_cm:.2f}cm" if pinch_cm is not None else "-"
                 print(
                     f"[GRAB] ts_ms={side_bundle.timestamp_ms} "
-                    f"pinch={pinch_str} target={out.target_key} hardness={prop.hardness.value}"
+                    f"pinch={pinch_str} target={out.target_key} subject={session_logger.subject_id}"
                 )
             last_grab_trigger = out.trigger_on
 
-            active_freq = hardness_freq_map.get(prop.hardness.value, cfg.ble_fixed_freq)
-            active_pulse_ms = hardness_pulse_map.get(prop.hardness.value, cfg.ble_pulse_ms)
-            ble.set_target(out.trigger_on, out.target_key, freq_hz=active_freq, pulse_ms=active_pulse_ms)
+            ble.set_target(out.trigger_on, out.target_key, freq_hz=cfg.ble_fixed_freq, pulse_ms=cfg.ble_pulse_ms)
             prop.update(
                 hand_xy=top_prop_xy,
                 grab_active=out.trigger_on,
@@ -455,8 +452,8 @@ def main() -> None:
                 keep_idle_visible=cfg.prop_idle_visible,
             )
 
-            # Keep top view clean: grid test only, do not visualize grab state.
-            draw_panel(top_frame, targets, hover_key=hover_key, grab_key=0)
+            # Keep top view clean for the participant monitor: only the static grid and the prop.
+            draw_panel(top_frame, targets)
             prop.draw(top_frame, show_label=False)
 
             range_vis = build_depth_range_view(
@@ -484,7 +481,7 @@ def main() -> None:
             cv2.putText(side_frame, f"BLE: {ble.status_msg}", (14, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.6, ble_color, 2)
             cv2.putText(
                 side_frame,
-                f"State:{grab_ctx.state.value} Target:{grab_ctx.grab_key if grab_ctx.grab_key > 0 else '-'}",
+                f"Subject:{session_logger.subject_id}",
                 (14, 52),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.58,
@@ -493,11 +490,11 @@ def main() -> None:
             )
             cv2.putText(
                 side_frame,
-                f"SidePinch:{side_pinch_dist:.3f}" if side_pinch_dist is not None else "SidePinch:-",
+                f"SidePinch:{side_pinch_cm:.2f}cm" if side_pinch_cm is not None else "SidePinch:-",
                 (14, 78),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.55,
-                (0, 255, 255) if grab_ctx.top_pinch_state else (255, 255, 255),
+                (255, 255, 255),
                 2,
             )
             cv2.putText(
@@ -511,7 +508,7 @@ def main() -> None:
             )
             cv2.putText(
                 side_frame,
-                f"Haptic:{prop.hardness.value} {active_freq}Hz {cfg.ble_fixed_volts} {active_pulse_ms}ms",
+                f"Haptic: fixed {cfg.ble_fixed_freq}Hz {cfg.ble_fixed_volts}V {cfg.ble_pulse_ms}ms",
                 (14, 130),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.52,
@@ -520,10 +517,10 @@ def main() -> None:
             )
             cv2.putText(
                 side_frame,
-                "Keys: q=quit, v=cycle hardness(soft/med/hard)",
+                f"CSV:{session_logger.path.name}",
                 (14, side_h - 14),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.52,
+                0.46,
                 (255, 255, 255),
                 2,
             )
@@ -542,17 +539,13 @@ def main() -> None:
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
-            if key == ord("v"):
-                now_ms = int(time.time() * 1000)
-                if now_ms - last_toggle_ms >= cfg.prop_toggle_cooldown_ms:
-                    prop.cycle_hardness()
-                    last_toggle_ms = now_ms
 
             if side_error:
                 time.sleep(0.5)
                 break
 
     finally:
+        session_logger.close()
         ble.stop()
         side_cam.stop()
         top_cap.release()
