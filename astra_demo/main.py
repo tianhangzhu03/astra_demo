@@ -294,21 +294,41 @@ def main() -> None:
     top_grab_hold_frames = 4
     top_jump_limit_px = 120.0
     logged_side_resize = False
+    last_wait_log_ms = 0
 
     print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit.")
 
     try:
         while True:
+            now_ms = int(time.time() * 1000)
             ok_top, top_frame_raw = top_cap.read()
             ok_side, side_color_raw = side_cap.read()
             side_bundle = side_cam.read()
-            if not ok_top or not ok_side or side_bundle is None:
+
+            depth_required = cfg.use_depth_gate or cfg.show_depth_window
+            missing_sources = []
+            if not ok_top:
+                missing_sources.append("top_rgb")
+            if not ok_side:
+                missing_sources.append("side_rgb")
+            if side_bundle is None and depth_required:
+                missing_sources.append("astra_depth")
+
+            if missing_sources:
+                if now_ms - last_wait_log_ms >= 1000:
+                    print(f"[WAIT] Missing frames: {', '.join(missing_sources)}")
+                    last_wait_log_ms = now_ms
                 time.sleep(0.01)
                 continue
 
             top_frame = cv2.flip(top_frame_raw.copy(), 1)
             side_frame = cv2.flip(side_color_raw.copy(), 1)
-            side_depth = cv2.flip(side_bundle.depth_mm.copy(), 1)
+            if side_bundle is None:
+                side_depth = np.zeros((side_frame.shape[0], side_frame.shape[1]), dtype=np.uint16)
+                side_timestamp_ms = now_ms
+            else:
+                side_depth = cv2.flip(side_bundle.depth_mm.copy(), 1)
+                side_timestamp_ms = side_bundle.timestamp_ms
 
             if not checked_alignment:
                 if side_frame.shape[:2] != side_depth.shape[:2]:
@@ -461,13 +481,13 @@ def main() -> None:
 
             if out.trigger_on and not last_grab_trigger:
                 pinch_cm = session_logger.log_grab(
-                    timestamp_ms=side_bundle.timestamp_ms,
+                    timestamp_ms=side_timestamp_ms,
                     pinch_norm=side_pinch_dist,
                     target_key=out.target_key,
                 )
                 pinch_str = f"{pinch_cm:.2f}cm" if pinch_cm is not None else "-"
                 print(
-                    f"[GRAB] ts_ms={side_bundle.timestamp_ms} "
+                    f"[GRAB] ts_ms={side_timestamp_ms} "
                     f"pinch={pinch_str} target={out.target_key} subject={session_logger.subject_id}"
                 )
             last_grab_trigger = out.trigger_on
@@ -476,7 +496,7 @@ def main() -> None:
             prop.update(
                 hand_xy=top_prop_xy,
                 grab_active=out.trigger_on,
-                now_ms=side_bundle.timestamp_ms,
+                now_ms=side_timestamp_ms,
                 keep_idle_visible=cfg.prop_idle_visible,
             )
 
