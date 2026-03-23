@@ -295,6 +295,8 @@ def main() -> None:
     top_jump_limit_px = 120.0
     logged_side_resize = False
     last_wait_log_ms = 0
+    last_nonzero_hover_key = 0
+    hover_key_hold_count = 0
 
     print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit.")
 
@@ -420,8 +422,20 @@ def main() -> None:
                     last_top_filtered_xy = None
                     last_top_visible_mid = None
 
+            raw_hover_key = 0
             if top_mid is not None:
-                hover_key = hit_test(top_mid[0], top_mid[1], targets)
+                raw_hover_key = hit_test(top_mid[0], top_mid[1], targets)
+            if raw_hover_key > 0:
+                hover_key = raw_hover_key
+                last_nonzero_hover_key = raw_hover_key
+                hover_key_hold_count = 0
+            elif last_nonzero_hover_key > 0 and hover_key_hold_count < cfg.hover_key_hold_frames:
+                hover_key = last_nonzero_hover_key
+                hover_key_hold_count += 1
+            else:
+                hover_key = 0
+                last_nonzero_hover_key = 0
+                hover_key_hold_count = 0
             if top_prop_xy is None:
                 top_prop_xy = top_mid
 

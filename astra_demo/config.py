@@ -17,7 +17,7 @@ class AstraDemoConfig:
     # Thumb-index pinch enter threshold (normalized distance); larger is easier to trigger.
     pinch_enter: float = 0.085
     # Pinch exit threshold (should be > enter to form hysteresis); smaller releases earlier after opening fingers.
-    pinch_exit: float = 0.115
+    pinch_exit: float = 0.100
 
     # Side-view hand detection minimum confidence; higher reduces false positives but may miss detections.
     side_min_detection_confidence: float = 0.5
@@ -52,7 +52,7 @@ class AstraDemoConfig:
     # Consecutive frames required to enter a state; larger is more stable but adds latency.
     enter_frames: int = 2
     # Consecutive frames required to exit a state; larger is more stable but releases slower.
-    exit_frames: int = 3
+    exit_frames: int = 2
     # Midpoint smoothing factor (0~1); larger is more responsive, smaller is smoother.
     smooth_alpha: float = 0.65
 
@@ -68,6 +68,8 @@ class AstraDemoConfig:
     grid_h_ratio: float = 0.78
     # Top grid Y-offset ratio; larger moves the grid downward.
     grid_y_ratio: float = 0.10
+    # Briefly hold the last valid zone when the top-view cursor flickers on a boundary.
+    hover_key_hold_frames: int = 3
 
     # Minimum depth visualization distance (mm); Astra hand demos typically use 180~1200.
     depth_vis_min_mm: int = 180
@@ -83,9 +85,9 @@ class AstraDemoConfig:
     show_depth_window: bool = False
 
     # Virtual prop idle/follow radius in pixels.
-    prop_size_follow: int = 40
+    prop_size_follow: int = 44
     # Virtual prop held radius in pixels; slightly larger to confirm a successful grab visually.
-    prop_size_held: int = 52
+    prop_size_held: int = 58
     # Whether the prop remains visible after release (True=keep, False=hide).
     prop_idle_visible: bool = True
     # Virtual prop follow smoothing factor; larger is more responsive, smaller is smoother.
