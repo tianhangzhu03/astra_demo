@@ -185,8 +185,8 @@ def open_uvc_camera(preferred_id: int, width: int, height: int, fps: int, label:
         if cam_id in tried:
             continue
         tried.append(cam_id)
-        backend = cv2.CAP_DSHOW if platform == "win32" else cv2.CAP_ANY
-        cap = cv2.VideoCapture(cam_id, backend)
+        # Match camera_id_probe.py so the same numeric ID maps to the same physical device on Windows.
+        cap = cv2.VideoCapture(cam_id)
         if cap.isOpened():
             cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
