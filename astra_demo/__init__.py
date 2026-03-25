@@ -1,1 +1,1 @@
-"""Windows Astra single-camera grab demo package."""
+"""Windows top-view + side-view grasp demo package."""

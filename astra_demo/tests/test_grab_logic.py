@@ -1,40 +1,22 @@
 import unittest
 
-import numpy as np
-
-from astra_demo.grab_logic import GrabContext, GrabState, sample_depth_5x5, update_grab_state
+from astra_demo.grab_logic import GrabContext, GrabState, update_grab_state
 
 
 class GrabLogicTests(unittest.TestCase):
-    def test_depth_sample_median_filters_invalid(self):
-        depth = np.zeros((10, 10), dtype=np.uint16)
-        depth[3:8, 3:8] = np.array(
-            [
-                [500, 510, 0, 520, 530],
-                [500, 510, 9999, 520, 530],
-                [500, 510, 520, 520, 530],
-                [500, 510, 520, 520, 530],
-                [500, 510, 520, 520, 530],
-            ],
-            dtype=np.uint16,
-        )
-        self.assertEqual(sample_depth_5x5(depth, (5, 5)), 520)
-
     def test_state_machine_reaches_grab_and_releases(self):
         ctx = GrabContext()
 
-        # Enter ARMED with stable pinch + hover.
+        # Enter ARMED with stable pinch + top-view presence.
         out = update_grab_state(
             ctx,
             pinch_dist=0.05,
-            depth_at_mid_mm=700,
             hover_key=4,
             pinch_enter=0.075,
-            pinch_exit=0.095,
-            depth_enter_mm=520,
-            depth_exit_mm=560,
+            pinch_exit=0.094,
             enter_frames=2,
-            exit_frames=2,
+            exit_frames=1,
+            top_hand_present=True,
         )
         ctx = out.context
         self.assertEqual(ctx.state, GrabState.IDLE)
@@ -42,30 +24,26 @@ class GrabLogicTests(unittest.TestCase):
         out = update_grab_state(
             ctx,
             pinch_dist=0.05,
-            depth_at_mid_mm=700,
             hover_key=4,
             pinch_enter=0.075,
-            pinch_exit=0.095,
-            depth_enter_mm=520,
-            depth_exit_mm=560,
+            pinch_exit=0.094,
             enter_frames=2,
-            exit_frames=2,
+            exit_frames=1,
+            top_hand_present=True,
         )
         ctx = out.context
         self.assertEqual(ctx.state, GrabState.ARMED)
 
-        # Enter GRAB with stable near depth.
+        # Enter GRAB after another stable interval in ARMED.
         out = update_grab_state(
             ctx,
             pinch_dist=0.05,
-            depth_at_mid_mm=510,
             hover_key=4,
             pinch_enter=0.075,
-            pinch_exit=0.095,
-            depth_enter_mm=520,
-            depth_exit_mm=560,
+            pinch_exit=0.094,
             enter_frames=2,
-            exit_frames=2,
+            exit_frames=1,
+            top_hand_present=True,
         )
         ctx = out.context
         self.assertEqual(ctx.state, GrabState.ARMED)
@@ -73,64 +51,41 @@ class GrabLogicTests(unittest.TestCase):
         out = update_grab_state(
             ctx,
             pinch_dist=0.05,
-            depth_at_mid_mm=510,
             hover_key=4,
             pinch_enter=0.075,
-            pinch_exit=0.095,
-            depth_enter_mm=520,
-            depth_exit_mm=560,
+            pinch_exit=0.094,
             enter_frames=2,
-            exit_frames=2,
+            exit_frames=1,
+            top_hand_present=True,
         )
         ctx = out.context
         self.assertEqual(ctx.state, GrabState.GRAB)
         self.assertTrue(out.trigger_on)
         self.assertEqual(out.target_key, 4)
 
-        # Release with depth gate off for 2 frames.
+        # Release immediately when the pinch opens.
         out = update_grab_state(
             ctx,
-            pinch_dist=0.05,
-            depth_at_mid_mm=900,
+            pinch_dist=0.12,
             hover_key=4,
             pinch_enter=0.075,
-            pinch_exit=0.095,
-            depth_enter_mm=520,
-            depth_exit_mm=560,
+            pinch_exit=0.094,
             enter_frames=2,
-            exit_frames=2,
+            exit_frames=1,
+            top_hand_present=True,
         )
-        ctx = out.context
-        self.assertEqual(ctx.state, GrabState.GRAB)
-
-        out = update_grab_state(
-            ctx,
-            pinch_dist=0.05,
-            depth_at_mid_mm=900,
-            hover_key=4,
-            pinch_enter=0.075,
-            pinch_exit=0.095,
-            depth_enter_mm=520,
-            depth_exit_mm=560,
-            enter_frames=2,
-            exit_frames=2,
-        )
-        ctx = out.context
-        self.assertEqual(ctx.state, GrabState.IDLE)
+        self.assertEqual(out.context.state, GrabState.IDLE)
         self.assertFalse(out.trigger_on)
 
     def test_short_missing_pinch_does_not_release_immediately(self):
-        ctx = GrabContext(state=GrabState.GRAB, top_pinch_state=True, depth_gate_state=True, grab_key=2, armed_key=2)
+        ctx = GrabContext(state=GrabState.GRAB, top_pinch_state=True, grab_key=2, armed_key=2)
 
         out = update_grab_state(
             ctx,
             pinch_dist=None,
-            depth_at_mid_mm=510,
             hover_key=2,
             pinch_enter=0.075,
-            pinch_exit=0.095,
-            depth_enter_mm=520,
-            depth_exit_mm=560,
+            pinch_exit=0.094,
             enter_frames=2,
             exit_frames=2,
             pinch_missing_hold_frames=2,
@@ -142,12 +97,9 @@ class GrabLogicTests(unittest.TestCase):
         out = update_grab_state(
             ctx,
             pinch_dist=None,
-            depth_at_mid_mm=510,
             hover_key=2,
             pinch_enter=0.075,
-            pinch_exit=0.095,
-            depth_enter_mm=520,
-            depth_exit_mm=560,
+            pinch_exit=0.094,
             enter_frames=2,
             exit_frames=2,
             pinch_missing_hold_frames=2,
@@ -159,12 +111,9 @@ class GrabLogicTests(unittest.TestCase):
         out = update_grab_state(
             ctx,
             pinch_dist=None,
-            depth_at_mid_mm=510,
             hover_key=2,
             pinch_enter=0.075,
-            pinch_exit=0.095,
-            depth_enter_mm=520,
-            depth_exit_mm=560,
+            pinch_exit=0.094,
             enter_frames=2,
             exit_frames=2,
             pinch_missing_hold_frames=2,
@@ -176,12 +125,9 @@ class GrabLogicTests(unittest.TestCase):
         out = update_grab_state(
             ctx,
             pinch_dist=None,
-            depth_at_mid_mm=510,
             hover_key=2,
             pinch_enter=0.075,
-            pinch_exit=0.095,
-            depth_enter_mm=520,
-            depth_exit_mm=560,
+            pinch_exit=0.094,
             enter_frames=2,
             exit_frames=2,
             pinch_missing_hold_frames=2,
@@ -190,17 +136,14 @@ class GrabLogicTests(unittest.TestCase):
         self.assertFalse(out.trigger_on)
 
     def test_open_pinch_releases_immediately_when_exit_frames_is_one(self):
-        ctx = GrabContext(state=GrabState.GRAB, top_pinch_state=True, depth_gate_state=True, grab_key=3, armed_key=3)
+        ctx = GrabContext(state=GrabState.GRAB, top_pinch_state=True, grab_key=3, armed_key=3)
 
         out = update_grab_state(
             ctx,
             pinch_dist=0.120,
-            depth_at_mid_mm=510,
             hover_key=3,
             pinch_enter=0.075,
             pinch_exit=0.094,
-            depth_enter_mm=520,
-            depth_exit_mm=560,
             enter_frames=2,
             exit_frames=1,
             pinch_missing_hold_frames=4,

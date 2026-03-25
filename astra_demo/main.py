@@ -12,9 +12,8 @@ import cv2
 import numpy as np
 
 from .ble_client import BleConfig, BleController
-from .camera_source import create_camera_source
 from .config import AstraDemoConfig
-from .grab_logic import GrabContext, sample_depth_5x5, update_grab_state
+from .grab_logic import GrabContext, update_grab_state
 from .mp_hands_compat import load_hands_api
 from .session_logger import SessionLogger
 from .virtual_prop import VirtualProp
@@ -99,12 +98,6 @@ def clamp_point_step(prev_xy: Tuple[int, int], cur_xy: Tuple[int, int], max_step
     return (int(prev_xy[0] + dx * s), int(prev_xy[1] + dy * s))
 
 
-def blend_points(a: Tuple[int, int], b: Tuple[int, int], w_b: float) -> tuple[int, int]:
-    w_b = max(0.0, min(1.0, w_b))
-    w_a = 1.0 - w_b
-    return (int(a[0] * w_a + b[0] * w_b), int(a[1] * w_a + b[1] * w_b))
-
-
 def compute_targets(w: int, h: int, panel_w_ratio: float, panel_h_ratio: float, panel_y_ratio: float) -> dict[int, tuple[int, int, int, int]]:
     rows = 2
     cols = 2
@@ -137,38 +130,6 @@ def hit_test(x: int, y: int, targets: dict[int, tuple[int, int, int, int]]) -> i
 def draw_panel(frame, targets) -> None:
     for key, (x1, y1, x2, y2) in targets.items():
         cv2.rectangle(frame, (x1, y1), (x2, y2), (230, 230, 230), 2)
-
-
-def build_depth_range_view(depth_mm, depth_min_mm: int, depth_max_mm: int, marker_xy: Optional[Tuple[int, int]]):
-    # Render full depth as pseudo-color to keep hand shape visible.
-    # Then slightly emphasize configured range.
-    valid = depth_mm > 0
-    bounded = valid & (depth_mm >= depth_min_mm) & (depth_mm <= depth_max_mm)
-    if not np.any(valid):
-        canvas = np.zeros((depth_mm.shape[0], depth_mm.shape[1], 3), dtype=np.uint8)
-    else:
-        valid_vals = depth_mm[valid].astype(np.float32)
-        lo = float(np.percentile(valid_vals, 5))
-        hi = float(np.percentile(valid_vals, 95))
-        lo = max(lo, float(depth_min_mm))
-        hi = min(max(lo + 1.0, hi), float(depth_max_mm))
-
-        clipped = depth_mm.astype(np.float32).copy()
-        clipped[~valid] = hi
-        clipped = np.clip(clipped, lo, hi)
-        norm = (clipped - lo) / max(1.0, hi - lo)
-        gray = (255.0 * (1.0 - norm)).astype(np.uint8)
-        canvas = cv2.applyColorMap(gray, cv2.COLORMAP_TURBO)
-        canvas[~valid] = (0, 0, 0)
-
-        # Slightly darken out-of-range to guide operator without losing context.
-        out_of_range = valid & (~bounded)
-        canvas[out_of_range] = (canvas[out_of_range] * 0.35).astype(np.uint8)
-
-    if marker_xy is not None:
-        cv2.circle(canvas, marker_xy, 6, (255, 255, 255), -1)
-        cv2.circle(canvas, marker_xy, 10, (0, 0, 0), 2)
-    return canvas
 
 
 def enhance_for_hand_detection(frame_bgr, clahe):
@@ -214,10 +175,10 @@ def map_point_to_full_res(pt: tuple[int, int], scale: float, full_w: int, full_h
 
 def main() -> None:
     if platform != "win32":
-        print("[WARN] This Astra demo is intended for Windows + Astra SDK.")
+        print("[WARN] This demo is intended for Windows camera capture.")
 
     cfg = AstraDemoConfig()
-    parser = argparse.ArgumentParser(description="Top camera + side Astra grab demo")
+    parser = argparse.ArgumentParser(description="Top camera + side camera grab demo")
     parser.add_argument(
         "--subject",
         default=cfg.default_subject_id,
@@ -252,8 +213,6 @@ def main() -> None:
         "top(phone)",
         strict_id=cfg.strict_camera_ids,
     )
-    side_cam = create_camera_source(fps=cfg.camera_fps)
-    side_cam.start()
     side_cap = open_uvc_camera(
         cfg.side_color_camera_id,
         cfg.frame_width,
@@ -289,35 +248,28 @@ def main() -> None:
     last_top_visible_prop_xy: Optional[Tuple[int, int]] = None
     top_lost_frames = 999
     smooth_side_mid: Optional[list[float]] = None
-    checked_alignment = False
     prop_initialized = False
     last_grab_trigger = False
     top_visual_hold_frames = cfg.top_visual_hold_frames
     top_grab_hold_frames = cfg.top_grab_hold_frames
     top_jump_limit_px = 120.0
-    logged_side_resize = False
     last_wait_log_ms = 0
     last_nonzero_hover_key = 0
     hover_key_hold_count = 0
     pinch_history = deque(maxlen=max(1, cfg.pinch_median_window))
 
-    print("[INFO] Top camera + side Astra demo starting. Press 'q' to quit.")
+    print("[INFO] Top camera + side camera demo starting. Press 'q' to quit.")
 
     try:
         while True:
             now_ms = int(time.time() * 1000)
             ok_top, top_frame_raw = top_cap.read()
             ok_side, side_color_raw = side_cap.read()
-            side_bundle = side_cam.read()
-
-            depth_required = cfg.use_depth_gate or cfg.show_depth_window
             missing_sources = []
             if not ok_top:
                 missing_sources.append("top_rgb")
             if not ok_side:
                 missing_sources.append("side_rgb")
-            if side_bundle is None and depth_required:
-                missing_sources.append("astra_depth")
 
             if missing_sources:
                 if now_ms - last_wait_log_ms >= 1000:
@@ -333,30 +285,7 @@ def main() -> None:
             side_frame = side_color_raw.copy()
             if cfg.side_mirror_horizontal:
                 side_frame = cv2.flip(side_frame, 1)
-            if side_bundle is None:
-                side_depth = np.zeros((side_frame.shape[0], side_frame.shape[1]), dtype=np.uint16)
-                side_timestamp_ms = now_ms
-            else:
-                side_depth = side_bundle.depth_mm.copy()
-                if cfg.side_mirror_horizontal:
-                    side_depth = cv2.flip(side_depth, 1)
-                side_timestamp_ms = side_bundle.timestamp_ms
-
-            if not checked_alignment:
-                if side_frame.shape[:2] != side_depth.shape[:2]:
-                    print(
-                        "[WARN] Side RGB(UVC)/Depth(OpenNI) size mismatch detected. "
-                        f"rgb={side_frame.shape[:2]} depth={side_depth.shape[:2]}. "
-                        "RGB will be resized to depth resolution for alignment and lower latency."
-                    )
-                checked_alignment = True
-
-            if side_frame.shape[:2] != side_depth.shape[:2]:
-                depth_h, depth_w = side_depth.shape[:2]
-                side_frame = cv2.resize(side_frame, (depth_w, depth_h), interpolation=cv2.INTER_LINEAR)
-                if not logged_side_resize:
-                    print(f"[INFO] Side RGB resized to {depth_w}x{depth_h} for aligned processing.")
-                    logged_side_resize = True
+            side_timestamp_ms = now_ms
 
             top_h, top_w, _ = top_frame.shape
             side_h, side_w, _ = side_frame.shape
@@ -374,7 +303,7 @@ def main() -> None:
                 prop.initialize_at(init_top_xy, visible=cfg.prop_idle_visible)
                 prop_initialized = True
 
-            # Top camera: 3x3 grid test only.
+            # Top camera: 2x2 grid hit-testing only.
             top_detect_frame = top_frame
             if cfg.top_hand_process_scale < 0.999:
                 top_detect_frame = cv2.resize(
@@ -450,7 +379,7 @@ def main() -> None:
             if top_prop_xy is None:
                 top_prop_xy = top_mid
 
-            # Side Astra: pinch/depth gate/state/BLE/prop.
+            # Side camera: pinch/state/BLE/prop.
             side_detect_frame = enhance_for_hand_detection(side_frame, clahe) if cfg.side_use_clahe else side_frame
             if cfg.hand_process_scale < 0.999:
                 side_detect_frame = cv2.resize(
@@ -490,18 +419,12 @@ def main() -> None:
                 smooth_side_mid = None
                 pinch_history.clear()
 
-            # Side camera now only provides pinch trigger.
-            side_depth_at_mid = sample_depth_5x5(side_depth, side_mid) if side_mid else None
-            depth_for_gate = max(1, cfg.depth_enter_mm - 1)
             out = update_grab_state(
                 ctx=grab_ctx,
                 pinch_dist=side_pinch_for_logic,
-                depth_at_mid_mm=depth_for_gate,
                 hover_key=hover_key,
                 pinch_enter=cfg.pinch_enter,
                 pinch_exit=cfg.pinch_exit,
-                depth_enter_mm=cfg.depth_enter_mm,
-                depth_exit_mm=cfg.depth_exit_mm,
                 enter_frames=cfg.enter_frames,
                 exit_frames=cfg.exit_frames,
                 pinch_missing_hold_frames=cfg.pinch_missing_hold_frames,
@@ -534,28 +457,6 @@ def main() -> None:
             draw_panel(top_frame, targets)
             prop.draw(top_frame, show_label=False)
 
-            range_vis = None
-            if cfg.show_depth_window:
-                range_vis = build_depth_range_view(
-                    side_depth,
-                    depth_min_mm=cfg.depth_vis_min_mm,
-                    depth_max_mm=cfg.depth_vis_max_mm,
-                    marker_xy=side_mid,
-                )
-                cv2.putText(
-                    range_vis,
-                    f"Depth Range {cfg.depth_vis_min_mm//10}-{cfg.depth_vis_max_mm//10}cm",
-                    (8, 18),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    (255, 255, 255),
-                    1,
-                )
-
-            side_error = getattr(side_cam, "get_error", lambda: None)()
-            if side_error and cfg.show_side_color_window:
-                cv2.putText(side_frame, side_error, (14, 136), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 0, 255), 2)
-
             if cfg.show_side_color_window:
                 ble_color = (0, 255, 0) if ble.is_connected else (0, 0, 255)
                 cv2.putText(side_frame, f"BLE: {ble.status_msg}", (14, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.6, ble_color, 2)
@@ -579,17 +480,8 @@ def main() -> None:
                 )
                 cv2.putText(
                     side_frame,
-                    f"SideDepth(mm):{side_depth_at_mid if side_depth_at_mid is not None else '-'} Gate:BYPASS",
-                    (14, 104),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.55,
-                    (0, 255, 255),
-                    2,
-                )
-                cv2.putText(
-                    side_frame,
                     f"Haptic: fixed {cfg.ble_fixed_freq}Hz {cfg.ble_fixed_volts}V {cfg.ble_pulse_ms}ms",
-                    (14, 130),
+                    (14, 104),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.52,
                     (255, 255, 255),
@@ -605,31 +497,17 @@ def main() -> None:
                     2,
                 )
 
-            cv2.imshow("Top Camera - 3x3 Grid Test", top_frame)
+            cv2.imshow("Top Camera - 2x2 Grid Test", top_frame)
             if cfg.show_side_color_window:
-                cv2.imshow("Side Astra - Grab + BLE + Virtual Prop", side_frame)
-            if cfg.show_depth_window and range_vis is not None:
-                cv2.imshow(
-                    "Depth Range View",
-                    cv2.resize(
-                        range_vis,
-                        (cfg.depth_view_width, cfg.depth_view_height),
-                        interpolation=cv2.INTER_NEAREST,
-                    ),
-                )
+                cv2.imshow("Side Camera - Grab + BLE + Virtual Prop", side_frame)
 
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
 
-            if side_error:
-                time.sleep(0.5)
-                break
-
     finally:
         session_logger.close()
         ble.stop()
-        side_cam.stop()
         top_cap.release()
         side_cap.release()
         hands_top.close()

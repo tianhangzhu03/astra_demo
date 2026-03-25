@@ -11,12 +11,11 @@ class AstraDemoConfig:
     strict_camera_ids: bool = True
     # Mirror the top camera horizontally; rear-phone top view usually wants False.
     top_mirror_horizontal: bool = False
-    # Mirror the side RGB and depth views together so operator motion feels natural.
+    # Mirror the side camera so operator motion feels natural.
     side_mirror_horizontal: bool = True
 
     # Target capture FPS; higher values reduce perceived latency but increase CPU usage.
     camera_fps: int = 30
-    depth_unit: str = "mm"
 
     # Thumb-index pinch enter threshold (normalized distance); larger is easier to trigger.
     pinch_enter: float = 0.085
@@ -50,13 +49,6 @@ class AstraDemoConfig:
     # Extra hold during active grab; larger helps avoid false visual drop while moving across zones.
     top_grab_hold_frames: int = 8
 
-    # Depth enter threshold (mm); smaller means the hand must be closer. Currently used as a soft gate.
-    depth_enter_mm: int = 760
-    # Depth exit threshold (mm, should be > enter); larger makes release less sensitive.
-    depth_exit_mm: int = 860
-    # Whether depth gating participates in grab decision; when False, depth is visualization only.
-    use_depth_gate: bool = False
-
     # Consecutive frames required to enter a state; larger is more stable but adds latency.
     enter_frames: int = 2
     # Consecutive frames required to exit a state; 1 makes deliberate finger opening feel more immediate.
@@ -78,19 +70,8 @@ class AstraDemoConfig:
     grid_y_ratio: float = 0.10
     # Briefly hold the last valid zone when the top-view cursor flickers on a boundary.
     hover_key_hold_frames: int = 4
-
-    # Minimum depth visualization distance (mm); Astra hand demos typically use 180~1200.
-    depth_vis_min_mm: int = 180
-    # Maximum depth visualization distance (mm); larger shows farther background.
-    depth_vis_max_mm: int = 1200
-
-    # Depth standalone window size; smaller reduces rendering cost.
-    depth_view_width: int = 520
-    depth_view_height: int = 390
     # Show the side RGB window used by the operator to monitor pinch behavior.
     show_side_color_window: bool = True
-    # Show the pseudo-color depth preview window; disabling it reduces render cost.
-    show_depth_window: bool = False
 
     # Virtual prop idle/follow radius in pixels.
     prop_size_follow: int = 44
