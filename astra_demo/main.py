@@ -130,6 +130,12 @@ def hit_test(x: int, y: int, targets: dict[int, tuple[int, int, int, int]]) -> i
 def draw_panel(frame, targets) -> None:
     for key, (x1, y1, x2, y2) in targets.items():
         cv2.rectangle(frame, (x1, y1), (x2, y2), (230, 230, 230), 2)
+        label = str(key)
+        (tw, th), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+        tx = x1 + max(0, (x2 - x1 - tw) // 2)
+        ty = y2 - 12
+        cv2.putText(frame, label, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 4, cv2.LINE_AA)
+        cv2.putText(frame, label, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (240, 240, 240), 2, cv2.LINE_AA)
 
 
 def enhance_for_hand_detection(frame_bgr, clahe):
