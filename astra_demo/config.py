@@ -86,11 +86,11 @@ class AstraDemoConfig:
     ble_mac_address: str = "FE:56:9B:F0:CF:0E"
     ble_uuid: str = "120062c4-b99e-4141-9439-c4f9db977899"
     # Single demo haptic voltage shared by every successful grab.
-    ble_fixed_volts: int = 2500
+    ble_fixed_volts: int = 2000
     # Single demo haptic frequency (Hz) shared by every successful grab.
     ble_fixed_freq: int = 100
     # Single one-shot vibration pulse duration (ms) shared by every successful grab.
-    ble_pulse_ms: int = 500
+    ble_pulse_ms: int = 200
 
     # Default participant label used when --subject is not provided.
     default_subject_id: str = "subject01"
