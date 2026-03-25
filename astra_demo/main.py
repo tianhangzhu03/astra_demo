@@ -286,6 +286,7 @@ def main() -> None:
     smooth_top_mid: Optional[list[float]] = None
     last_top_filtered_xy: Optional[tuple[float, float]] = None
     last_top_visible_mid: Optional[Tuple[int, int]] = None
+    last_top_visible_prop_xy: Optional[Tuple[int, int]] = None
     top_lost_frames = 999
     smooth_side_mid: Optional[list[float]] = None
     checked_alignment = False
@@ -417,19 +418,20 @@ def main() -> None:
                 top_mid = (int(top_x), int(top_y))
                 last_top_filtered_xy = (smooth_top_mid[0], smooth_top_mid[1])
                 last_top_visible_mid = top_mid
+                last_top_visible_prop_xy = top_pinch_proxy_raw
                 top_lost_frames = 0
-                # Prop should sit closer to thumb-index pinch area, not the fist/palm center.
-                top_prop_xy = blend_points(top_mid, top_pinch_proxy_raw, 0.72)
-                top_prop_xy = clamp_point_step(top_mid, top_prop_xy, 150.0)
+                # The virtual prop should sit directly at the thumb-index pinch area, not the palm center.
+                top_prop_xy = top_pinch_proxy_raw
             else:
                 top_lost_frames += 1
                 if last_top_visible_mid is not None and top_lost_frames <= top_visual_hold_frames:
                     top_mid = last_top_visible_mid
-                    top_prop_xy = top_mid
+                    top_prop_xy = last_top_visible_prop_xy if last_top_visible_prop_xy is not None else top_mid
                 else:
                     smooth_top_mid = None
                     last_top_filtered_xy = None
                     last_top_visible_mid = None
+                    last_top_visible_prop_xy = None
 
             raw_hover_key = 0
             if top_mid is not None:
