@@ -11,10 +11,11 @@ from typing import Optional, Tuple
 import cv2
 import numpy as np
 
-from .ble_client import BleConfig, BleController
+from .manual_control import Actuation, ManualBleController
 from .config import AstraDemoConfig
 from .grab_logic import GrabContext, update_grab_state
 from .mp_hands_compat import load_hands_api
+from .operator_panel import OperatorPanel, draw_workspace_boundary, initial_ball_position
 from .session_logger import SessionLogger
 from .virtual_prop import VirtualProp
 
@@ -98,46 +99,6 @@ def clamp_point_step(prev_xy: Tuple[int, int], cur_xy: Tuple[int, int], max_step
     return (int(prev_xy[0] + dx * s), int(prev_xy[1] + dy * s))
 
 
-def compute_targets(w: int, h: int, panel_w_ratio: float, panel_h_ratio: float, panel_y_ratio: float) -> dict[int, tuple[int, int, int, int]]:
-    rows = 2
-    cols = 2
-    panel_w = int(w * panel_w_ratio)
-    panel_h = int(h * panel_h_ratio)
-    sx = (w - panel_w) // 2
-    sy = int(h * panel_y_ratio)
-    cw = panel_w // cols
-    ch = panel_h // rows
-
-    targets: dict[int, tuple[int, int, int, int]] = {}
-    for r in range(rows):
-        for c in range(cols):
-            key = r * cols + c + 1
-            x1 = sx + c * cw
-            y1 = sy + r * ch
-            x2 = x1 + cw
-            y2 = y1 + ch
-            targets[key] = (x1, y1, x2, y2)
-    return targets
-
-
-def hit_test(x: int, y: int, targets: dict[int, tuple[int, int, int, int]]) -> int:
-    for key, (x1, y1, x2, y2) in targets.items():
-        if x1 <= x <= x2 and y1 <= y <= y2:
-            return key
-    return 0
-
-
-def draw_panel(frame, targets) -> None:
-    for key, (x1, y1, x2, y2) in targets.items():
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (55, 55, 55), 2)
-        label = str(key)
-        (tw, th), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
-        tx = x1 + max(0, (x2 - x1 - tw) // 2)
-        ty = y2 - 12
-        cv2.putText(frame, label, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 4, cv2.LINE_AA)
-        cv2.putText(frame, label, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (240, 240, 240), 2, cv2.LINE_AA)
-
-
 def enhance_for_hand_detection(frame_bgr, clahe):
     lab = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2LAB)
     l, a, b = cv2.split(lab)
@@ -199,17 +160,7 @@ def main() -> None:
     )
     print(f"[LOG] Writing grab records to {session_logger.path}")
 
-    ble = BleController(
-        BleConfig(
-            enabled=cfg.ble_enabled,
-            mac_address=cfg.ble_mac_address,
-            uuid=cfg.ble_uuid,
-            fixed_volts=cfg.ble_fixed_volts,
-            fixed_freq=cfg.ble_fixed_freq,
-            pulse_ms=cfg.ble_pulse_ms,
-        )
-    )
-    ble.start()
+    ble = ManualBleController(cfg.ble_enabled, cfg.ble_mac_address, cfg.ble_uuid)
 
     top_cap = open_uvc_camera(
         cfg.top_camera_id,
@@ -260,13 +211,23 @@ def main() -> None:
     top_grab_hold_frames = cfg.top_grab_hold_frames
     top_jump_limit_px = 120.0
     last_wait_log_ms = 0
-    last_nonzero_hover_key = 0
-    hover_key_hold_count = 0
     pinch_history = deque(maxlen=max(1, cfg.pinch_median_window))
+    panel = OperatorPanel(ble, Actuation(
+        volts_mv=cfg.manual_voltage_mv,
+        duration_s=cfg.manual_duration_s,
+        frequency_hz=cfg.manual_frequency_hz,
+    ))
+    panel_interval = 1.0 / max(1, cfg.operator_panel_fps)
+    last_panel_time = 0.0
+    previous_frame_time = time.perf_counter()
+    measured_fps = 0.0
 
     print("[INFO] Top camera + side camera demo starting. Press 'q' to quit.")
 
     try:
+        ble.start()
+        if cfg.show_operator_window:
+            panel.open()
         while True:
             now_ms = int(time.time() * 1000)
             ok_top, top_frame_raw = top_cap.read()
@@ -281,7 +242,16 @@ def main() -> None:
                 if now_ms - last_wait_log_ms >= 1000:
                     print(f"[WAIT] Missing frames: {', '.join(missing_sources)}")
                     last_wait_log_ms = now_ms
-                time.sleep(0.01)
+                if cfg.show_operator_window and time.perf_counter() - last_panel_time >= panel_interval:
+                    cv2.imshow(panel.window_name, panel.render(
+                        ble_status=ble.status_msg,
+                    ))
+                    last_panel_time = time.perf_counter()
+                panel.handle_key(cv2.waitKeyEx(10))
+                if panel.quit_requested:
+                    break
+                if cfg.show_operator_window and cv2.getWindowProperty(panel.window_name, cv2.WND_PROP_VISIBLE) < 1:
+                    break
                 continue
 
             top_frame = top_frame_raw.copy()
@@ -296,20 +266,13 @@ def main() -> None:
             top_h, top_w, _ = top_frame.shape
             side_h, side_w, _ = side_frame.shape
 
-            targets = compute_targets(
-                top_w,
-                top_h,
-                panel_w_ratio=cfg.grid_w_ratio,
-                panel_h_ratio=cfg.grid_h_ratio,
-                panel_y_ratio=cfg.grid_y_ratio,
-            )
             if not prop_initialized:
                 # Top-view operation: initialize prop directly in top view.
-                init_top_xy = (float(top_w * 0.50), float(top_h * 0.50))
+                init_top_xy = initial_ball_position(top_w, top_h)
                 prop.initialize_at(init_top_xy, visible=cfg.prop_idle_visible)
                 prop_initialized = True
 
-            # Top camera: 2x2 grid hit-testing only.
+            # Top camera provides the continuous planar hand position.
             top_detect_frame = top_frame
             if cfg.top_hand_process_scale < 0.999:
                 top_detect_frame = cv2.resize(
@@ -318,7 +281,6 @@ def main() -> None:
                     interpolation=cv2.INTER_LINEAR,
                 )
             top_result = hands_top.process(cv2.cvtColor(top_detect_frame, cv2.COLOR_BGR2RGB))
-            hover_key = 0
             top_mid: Optional[Tuple[int, int]] = None
             top_prop_xy: Optional[Tuple[int, int]] = None
             top_detected_now = False
@@ -368,20 +330,6 @@ def main() -> None:
                     last_top_visible_mid = None
                     last_top_visible_prop_xy = None
 
-            raw_hover_key = 0
-            if top_mid is not None:
-                raw_hover_key = hit_test(top_mid[0], top_mid[1], targets)
-            if raw_hover_key > 0:
-                hover_key = raw_hover_key
-                last_nonzero_hover_key = raw_hover_key
-                hover_key_hold_count = 0
-            elif last_nonzero_hover_key > 0 and hover_key_hold_count < cfg.hover_key_hold_frames:
-                hover_key = last_nonzero_hover_key
-                hover_key_hold_count += 1
-            else:
-                hover_key = 0
-                last_nonzero_hover_key = 0
-                hover_key_hold_count = 0
             if top_prop_xy is None:
                 top_prop_xy = top_mid
 
@@ -428,7 +376,7 @@ def main() -> None:
             out = update_grab_state(
                 ctx=grab_ctx,
                 pinch_dist=side_pinch_for_logic,
-                hover_key=hover_key,
+                hover_key=0,  # No zones in the manual guidance scenario.
                 pinch_enter=cfg.pinch_enter,
                 pinch_exit=cfg.pinch_exit,
                 enter_frames=cfg.enter_frames,
@@ -451,7 +399,7 @@ def main() -> None:
                 )
             last_grab_trigger = out.trigger_on
 
-            ble.set_target(out.trigger_on, out.target_key, freq_hz=cfg.ble_fixed_freq, pulse_ms=cfg.ble_pulse_ms)
+            # Hardware cues are operator-only; visual GRAB never sends BLE output.
             prop.update(
                 hand_xy=top_prop_xy,
                 grab_active=out.trigger_on,
@@ -459,61 +407,34 @@ def main() -> None:
                 keep_idle_visible=cfg.prop_idle_visible,
             )
 
-            # Keep top view clean for the participant monitor: only the static grid and the prop.
-            draw_panel(top_frame, targets)
+            # The workspace outline is visual only; it does not gate grasp detection.
+            draw_workspace_boundary(top_frame)
             prop.draw(top_frame, show_label=False)
 
-            if cfg.show_side_color_window:
-                ble_color = (0, 255, 0) if ble.is_connected else (0, 0, 255)
-                cv2.putText(side_frame, f"BLE: {ble.status_msg}", (14, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.6, ble_color, 2)
-                cv2.putText(
-                    side_frame,
-                    f"Subject:{session_logger.subject_id}",
-                    (14, 52),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.58,
-                    (255, 255, 255),
-                    2,
-                )
-                cv2.putText(
-                    side_frame,
-                    f"SidePinch:{side_pinch_cm:.2f}cm" if side_pinch_cm is not None else "SidePinch:-",
-                    (14, 78),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.55,
-                    (255, 255, 255),
-                    2,
-                )
-                cv2.putText(
-                    side_frame,
-                    f"Haptic: fixed {cfg.ble_fixed_freq}Hz {cfg.ble_fixed_volts}V {cfg.ble_pulse_ms}ms",
-                    (14, 104),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.52,
-                    (255, 255, 255),
-                    2,
-                )
-                cv2.putText(
-                    side_frame,
-                    f"CSV:{session_logger.path.name}",
-                    (14, side_h - 14),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.46,
-                    (255, 255, 255),
-                    2,
-                )
+            tick = time.perf_counter()
+            instantaneous_fps = 1.0 / max(0.001, tick - previous_frame_time)
+            measured_fps = instantaneous_fps if measured_fps == 0 else 0.9 * measured_fps + 0.1 * instantaneous_fps
+            previous_frame_time = tick
+            if cfg.show_operator_window and tick - last_panel_time >= panel_interval:
+                cv2.imshow(panel.window_name, panel.render(
+                    top_frame, side_frame,
+                    fps=measured_fps, ble_status=ble.status_msg,
+                ))
+                last_panel_time = tick
 
-            cv2.imshow("Top Camera - 2x2 Grid Test", top_frame)
+            cv2.imshow("Workspace | Top camera", top_frame)
             if cfg.show_side_color_window:
-                cv2.imshow("Side Camera - Grab + BLE + Virtual Prop", side_frame)
+                cv2.imshow("Tracking | Side camera", side_frame)
 
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord("q"):
+            panel.handle_key(cv2.waitKeyEx(1))
+            if panel.quit_requested:
+                break
+            if cfg.show_operator_window and cv2.getWindowProperty(panel.window_name, cv2.WND_PROP_VISIBLE) < 1:
                 break
 
     finally:
-        session_logger.close()
         ble.stop()
+        session_logger.close()
         top_cap.release()
         side_cap.release()
         hands_top.close()

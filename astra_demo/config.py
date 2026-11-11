@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass
 class AstraDemoConfig:
-    # Top camera ID (used for grid hit testing).
+    # Top camera ID (used for planar hand tracking).
     top_camera_id: int = 1
     # Side color camera ID (used for hand detection and rendering).
     side_color_camera_id: int = 2
@@ -62,16 +62,12 @@ class AstraDemoConfig:
     # Physical width of the calibrated interaction plane (cm); used to convert normalized pinch to centimeters.
     pinch_plane_width_cm: float = 62.0
 
-    # Top grid width ratio; larger makes the grid bigger.
-    grid_w_ratio: float = 0.84
-    # Top grid height ratio; larger makes the grid bigger.
-    grid_h_ratio: float = 0.78
-    # Top grid Y-offset ratio; larger moves the grid downward.
-    grid_y_ratio: float = 0.10
-    # Briefly hold the last valid zone when the top-view cursor flickers on a boundary.
-    hover_key_hold_frames: int = 4
-    # Show the side RGB window used by the operator to monitor pinch behavior.
-    show_side_color_window: bool = True
+    # Show a separate side camera debug window; the operator console already includes this view.
+    show_side_color_window: bool = False
+    # English manual BLE operator console; standalone --preview never uses hardware.
+    show_operator_window: bool = True
+    # Limit console composition frequency without skipping hand-detection frames.
+    operator_panel_fps: int = 20
 
     # Virtual prop idle/follow radius in pixels.
     prop_size_follow: int = 44
@@ -85,6 +81,13 @@ class AstraDemoConfig:
     ble_enabled: bool = True
     ble_mac_address: str = "FE:56:9B:F0:CF:0E"
     ble_uuid: str = "120062c4-b99e-4141-9439-c4f9db977899"
+    # Manual output starts at zero. UI steps: 100 mV; range 0..5000, not a safety rating.
+    manual_voltage_mv: int = 0
+    # Finite pulse duration, 0.1..5.0 seconds. The PC schedules the stop command.
+    manual_duration_s: float = 0.2
+    # Vibration only, 1..200 Hz. Directional and normal cues use Static mode.
+    manual_frequency_hz: int = 100
+    # Legacy automatic-grasp settings below are not used by the manual entry point.
     # Single demo haptic voltage shared by every successful grab.
     ble_fixed_volts: int = 2000
     # Single demo haptic frequency (Hz) shared by every successful grab.
