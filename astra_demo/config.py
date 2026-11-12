@@ -85,7 +85,7 @@ class AstraDemoConfig:
     manual_voltage_mv: int = 0
     # Finite pulse duration, 0.1..5.0 seconds. The PC schedules the stop command.
     manual_duration_s: float = 0.2
-    # Vibration only, 1..200 Hz. Directional and normal cues use Static mode.
+    # Vibration only, 10..200 Hz; UI step is 10 Hz. Force cues use Static mode.
     manual_frequency_hz: int = 100
     # Legacy automatic-grasp settings below are not used by the manual entry point.
     # Single demo haptic voltage shared by every successful grab.

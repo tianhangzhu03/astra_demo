@@ -75,9 +75,9 @@ def fit_camera(canvas, frame, rect, empty_label):
 
 
 def workspace_bounds(w, h):
-    # Derive width from height so camera aspect ratio cannot make the area squat.
-    height = min(h * .84, w * .90 / .80)
-    half_width = height * .80 / 2
+    # Keep X longer than Y regardless of the incoming camera aspect ratio.
+    height = min(h * .84, w * .90 / 1.50)
+    half_width = height * 1.50 / 2
     return (round(w / 2 - half_width), round(w / 2 + half_width),
             round((h - height) / 2), round((h + height) / 2))
 
@@ -167,7 +167,7 @@ class OperatorPanel:
 
     def adjust(self, field, direction):
         step, lo, hi = {'volts_mv': (100, 0, 5000), 'duration_s': (.1, .1, 5.),
-                        'frequency_hz': (1, 1, 200)}[field]
+                        'frequency_hz': (10, 10, 200)}[field]
         value = min(hi, max(lo, round(getattr(self.settings, field) + direction * step, 2)))
         self.settings = replace(self.settings, **{field: value})
 

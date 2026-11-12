@@ -45,7 +45,7 @@ class ProtocolTests(unittest.TestCase):
     def test_invalid_settings(self):
         for settings in [Actuation(-1), Actuation(5001), Actuation(duration_s=0),
                          Actuation(duration_s=6), Actuation(duration_s=float('nan')),
-                         Actuation(frequency_hz=201)]:
+                         Actuation(frequency_hz=201), Actuation(frequency_hz=9)]:
             with self.assertRaises(ValueError):
                 command_packet(Cue.NORMAL, settings)
 

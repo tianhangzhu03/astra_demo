@@ -47,14 +47,22 @@ class PanelTests(unittest.TestCase):
         p.handle_key(ord('='))
         self.assertEqual(p.settings.volts_mv,100)
         self.assertEqual(p.settings.duration_s,.3)
+        p.handle_key(ord('.'))
+        self.assertEqual(p.settings.frequency_hz,110)
+        p.handle_key(ord(','))
+        self.assertEqual(p.settings.frequency_hz,100)
         for _ in range(100):
             p.adjust('duration_s',1)
             p.adjust('volts_mv',1)
+            p.adjust('frequency_hz',1)
         self.assertEqual(p.settings.duration_s,5)
         self.assertEqual(p.settings.volts_mv,5000)
+        self.assertEqual(p.settings.frequency_hz,200)
         for _ in range(100):
             p.adjust('duration_s',-1)
+            p.adjust('frequency_hz',-1)
         self.assertEqual(p.settings.duration_s,.1)
+        self.assertEqual(p.settings.frequency_hz,10)
 
     def test_windows_key_repeat_requires_release(self):
         r=Recorder()
@@ -70,11 +78,11 @@ class PanelTests(unittest.TestCase):
         p.handle_key(ord('g'))
         self.assertEqual(len(r.calls),2)
 
-    def test_preview_and_portrait_workspace(self):
+    def test_preview_and_landscape_workspace(self):
         p=OperatorPanel()
         p.handle_key(ord('g'))
         self.assertIn('no output',p.message)
         self.assertEqual(p.render(preview_inputs()).shape,(900,1180,3))
         for w,h in [(640,480),(1280,720),(480,640)]:
             x0,x1,y0,y1=workspace_bounds(w,h)
-            self.assertAlmostEqual((x1-x0)/(y1-y0),.8,places=2)
+            self.assertAlmostEqual((x1-x0)/(y1-y0),1.5,places=2)

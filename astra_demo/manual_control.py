@@ -33,8 +33,8 @@ class Actuation:
             raise ValueError("Voltage must be 0..5000 mV")
         if not math.isfinite(self.duration_s) or not 0.1 <= self.duration_s <= 5.0:
             raise ValueError("Duration must be 0.1..5.0 s (no infinite output)")
-        if not isinstance(self.frequency_hz, int) or not 1 <= self.frequency_hz <= 200:
-            raise ValueError("Vibration frequency must be 1..200 Hz")
+        if not isinstance(self.frequency_hz, int) or not 10 <= self.frequency_hz <= 200:
+            raise ValueError("Vibration frequency must be 10..200 Hz")
 
 
 def command_packet(cue, settings):
