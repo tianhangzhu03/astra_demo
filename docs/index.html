@@ -1,0 +1,1878 @@
+<!doctype html>
+<html lang="en" data-visualize-standalone>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com https://persistent.oaistatic.com/plugins/visualize/; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com https://persistent.oaistatic.com/plugins/visualize/charts/; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="description" content="An interactive top-view walkthrough of a haptically guided grasp-and-transport trial: operator cues, participant actions and system feedback.">
+<title>Astra Demo | Haptic guidance walkthrough</title>
+<style>:root {
+  color-scheme: light dark;
+  background-color: var(
+    --background,
+    var(--color-background-primary, light-dark(rgb(255 255 255), rgb(24 24 24)))
+  ) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: var(
+    --color-background-primary,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --card: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --card-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --popover: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255), rgb(45 45 45))
+  );
+  --popover-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --primary: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --primary-foreground: var(
+    --color-text-inverse,
+    light-dark(rgb(255 255 255), rgb(13 13 13))
+  );
+  --secondary: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%))
+  );
+  --secondary-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: var(
+    --color-text-secondary,
+    light-dark(rgb(26 28 31 / 49.4%), rgb(255 255 255 / 49.8%))
+  );
+  --accent: var(
+    --color-background-info,
+    light-dark(rgb(229 242 255), rgb(13 39 63))
+  );
+  --accent-foreground: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --destructive: var(
+    --color-text-warning,
+    light-dark(rgb(226 85 7), rgb(255 133 73))
+  );
+  --border: var(
+    --color-border-secondary,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+  --input: var(
+    --color-border-primary,
+    light-dark(
+      rgb(26 28 31 / 11.8%),
+      color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+    )
+  );
+  --ring: var(
+    --color-ring-primary,
+    light-dark(rgb(51 156 255), rgb(131 195 255 / 76%))
+  );
+  --font-size-base: var(--font-text-md-size, 16px);
+  --blue: light-dark(rgb(51 156 255), rgb(51 156 255));
+  --orange: light-dark(rgb(226 85 7), rgb(251 106 34));
+  --green: light-dark(rgb(0 162 64), rgb(64 201 119));
+  --red: light-dark(rgb(224 46 42), rgb(255 103 100));
+  --purple: light-dark(rgb(146 79 247), rgb(173 123 249));
+  --yellow: light-dark(rgb(255 195 0), rgb(255 210 64));
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans:
+    -apple-system-body, ui-sans-serif, -apple-system, system-ui, "Segoe UI",
+    Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji",
+    "Segoe UI Symbol";
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --icon-size: 16px;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --corner-shape: round;
+  --radius: var(--border-radius-lg, 8px);
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 17'%3E%3Cpath d='M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z'/%3E%3C/svg%3E");
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html > body {
+  /* Preserve MCP aliases for older inline renderers without creating :root cycles. */
+  --color-background-primary: var(
+    --background,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --color-text-primary: var(
+    --foreground,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --color-border-secondary: var(
+    --border,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+
+  margin: 0;
+  padding: var(--visualize-paint-gutter, 0px);
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans) !important;
+  -webkit-font-smoothing: antialiased;
+  font-size: var(--font-size-base);
+  line-height: calc(var(--font-size-base) * 1.625);
+  font-weight: var(--font-weight-normal);
+}
+
+.cursor-interaction {
+  cursor: var(--cursor-interaction, pointer);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: var(--cursor-interaction, pointer);
+  text-decoration: none;
+  text-underline-offset: 2px;
+  font-weight: inherit;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+li,
+.table {
+  font-family: var(--font-sans);
+}
+
+h1 {
+  font-size: calc(var(--font-size-base) * 1.5);
+  line-height: 1.3333333333;
+}
+
+h2 {
+  font-size: calc(var(--font-size-base) * 1.25);
+  line-height: 1.4;
+}
+h3 {
+  font-size: calc(var(--font-size-base) * 1.125);
+  line-height: 1.5555555556;
+}
+h4 {
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+}
+h5,
+h6 {
+  font-size: var(--font-size-base);
+  line-height: calc(var(--font-size-base) * 1.625);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+b,
+strong,
+th {
+  font-weight: 600;
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+pre,
+pre code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: calc(var(--font-size-base) * 0.875);
+  line-height: calc(var(--font-size-base) * 1.625);
+  font-family: var(--font-sans);
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+.table :is(th, td):not(:last-child) {
+  padding-inline-end: calc(var(--font-size-base) * 1.5);
+}
+
+.table-responsive > .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead :is(th, td) {
+  border-bottom-color: var(--border-strong, var(--input));
+  padding-block: calc(var(--font-size-base) / 2);
+  line-height: var(--font-size-base);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+.table tbody :is(th, td) {
+  padding-block: calc(var(--font-size-base) * 0.625);
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 8px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align="right"]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align="center"]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: var(--corner-shape);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+.widget {
+  min-width: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  box-shadow: 0 0 0 0.5px var(--border-strong, var(--border));
+  color: var(--foreground);
+  background: var(--background);
+}
+
+#widget > :not(.card, .widget, .progress) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  border: 1px solid var(--border);
+  corner-shape: var(--corner-shape);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+  font-family: var(--font-sans);
+  padding: 5px 12px;
+  border-color: color-mix(
+    in oklab,
+    light-dark(var(--primary-foreground), var(--foreground)) 5%,
+    transparent
+  );
+  border-radius: var(--radius-2xl);
+  color: light-dark(var(--primary-foreground), var(--foreground));
+  background: light-dark(var(--foreground), var(--popover));
+  box-shadow: 0 8px 18px rgb(15 23 42 / 20%);
+  letter-spacing: -0.15px;
+  font-size: calc(var(--font-size-base) * 14 / 16);
+  font-size: round(nearest, calc(var(--font-size-base) * 14 / 16), 1px);
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+hr {
+  width: 100%;
+  height: 1px;
+  margin-block: 6px;
+  border: 0;
+  background: var(--border);
+}
+
+.nav {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.progress {
+  display: flex;
+  height: 8px;
+  margin-block: calc((var(--line-height-normal, 1.5em) - 8px) / 2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+}
+
+.progress-bar:only-child {
+  border-radius: var(--radius-full);
+}
+
+.progress-bar {
+  height: 100%;
+  flex-shrink: 0;
+  border: 0;
+  background: var(--viz-series-1);
+}
+
+.viz-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  color: color-mix(in srgb, var(--foreground) 40%, var(--muted-foreground));
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  font-family: var(--font-sans);
+  font-size: calc(var(--font-size-base) * 14 / 16);
+  font-size: round(nearest, calc(var(--font-size-base) * 14 / 16), 1px);
+  font-weight: var(--font-weight-normal);
+  line-height: 1;
+}
+
+small,
+.text-small {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls > .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls > .form-label > :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.nav-link,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+/* Match inline alignment without overriding a containing flex or grid layout. */
+.btn,
+.nav-link,
+.form-control,
+.form-select,
+.form-range,
+.form-check {
+  vertical-align: middle;
+}
+
+.btn,
+.nav-link {
+  --btn-size: calc(12px + 2 * var(--control-spacing, 12px));
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  corner-shape: var(--corner-shape);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: inherit;
+  font-family: var(--font-sans);
+  height: fit-content;
+  min-height: var(--btn-size);
+  padding-inline: var(--control-spacing, 12px);
+  border-color: transparent;
+  border-radius: var(--radius-full);
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  font-size: calc(var(--font-size-base) * 14 / 16);
+  font-size: round(nearest, calc(var(--font-size-base) * 14 / 16), 1px);
+  font-weight: var(--font-weight-normal);
+  line-height: 18px;
+}
+
+.btn {
+  border-color: var(--border);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+}
+
+/* Codex Button size="compact"; appearance stays with the button variant. */
+.btn-sm {
+  --btn-size: 24px;
+  padding-inline: 8px;
+  font-size: calc(var(--font-size-base) * 12 / 16);
+  font-size: round(nearest, calc(var(--font-size-base) * 12 / 16), 1px);
+  line-height: 16px;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: var(--cursor-interaction, pointer);
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover {
+  background: light-dark(
+    color-mix(in srgb, var(--foreground) 5.5%, transparent),
+    color-mix(in srgb, var(--foreground) 8%, transparent)
+  );
+}
+
+.nav-link:not(:disabled):not([aria-disabled="true"]):hover {
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.btn-primary {
+  border-color: var(--border);
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: border-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: border-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--muted-foreground);
+  background: light-dark(
+    color-mix(in srgb, var(--foreground) 5.5%, transparent),
+    color-mix(in srgb, var(--foreground) 8%, transparent)
+  );
+}
+
+.nav-pills .nav-link {
+  min-width: 0;
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.nav-justified .nav-link {
+  flex: 1 1 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.nav-pills .nav-link.active {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+/* Shared preview chrome; product styles stay inside each variant. */
+.viz-dotted-background {
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--foreground) 14%, transparent) 0.8px,
+    transparent 0.8px
+  );
+  background-position: center;
+  background-size: 16px 16px;
+}
+
+.viz-carousel {
+  position: relative;
+  min-width: 0;
+}
+
+.viz-carousel:has(> .viz-carousel-controls) {
+  min-height: calc(60px + var(--viz-carousel-picker-height, 0px));
+  padding-bottom: 60px;
+}
+
+.viz-carousel > [data-variant][hidden] {
+  display: none !important;
+}
+
+.viz-carousel > [data-variant] {
+  isolation: isolate;
+}
+
+.viz-carousel-controls {
+  --viz-carousel-hover: light-dark(
+    color-mix(in srgb, var(--foreground) 5.4%, transparent),
+    color-mix(in srgb, var(--foreground) 7.8%, transparent)
+  );
+  position: absolute;
+  z-index: 2;
+  bottom: 8px;
+  left: 50%;
+  display: flex;
+  width: max-content;
+  /* Leave room for the host's design-controls launcher at the trailing edge. */
+  max-width: calc(100% - 96px);
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-sans);
+  /* Match the settings dropdown chrome independently of the content font size. */
+  font-size: 13px;
+  font-weight: var(--font-weight-normal);
+  line-height: 18px;
+  transform: translateX(-50%);
+  user-select: none;
+}
+
+/* Keep authored mockup button styles out of the shared carousel chrome. */
+.viz-carousel-controls button,
+.viz-carousel-picker > summary {
+  display: flex !important;
+  height: auto !important;
+  min-height: 30px;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px;
+  padding: 0 6px !important;
+  -webkit-app-region: no-drag;
+  border: 0 !important;
+  border-radius: 14px !important;
+  color: inherit !important;
+  background: transparent !important;
+  font: inherit !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.viz-carousel-controls > button,
+.viz-carousel-picker > summary {
+  position: relative;
+  isolation: isolate;
+}
+
+.viz-carousel-controls > button {
+  --icon-size: 16px;
+  width: 30px !important;
+  padding: 0 !important;
+}
+
+.viz-carousel-picker > summary {
+  padding-inline: 12px !important;
+}
+
+.viz-carousel-controls .viz-carousel-caret {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin: 0;
+  color: inherit;
+  transform: rotate(180deg);
+}
+
+.viz-carousel-controls > button > svg,
+.viz-carousel-controls .viz-carousel-caret,
+.viz-carousel-count {
+  opacity: 0.5;
+}
+
+.viz-carousel-controls > button::before,
+.viz-carousel-picker > summary::before {
+  position: absolute;
+  z-index: -1;
+  inset: 3px;
+  border-radius: 12px;
+  content: "";
+  pointer-events: none;
+}
+
+.viz-carousel-controls > button:hover::before,
+.viz-carousel-picker > summary:hover::before {
+  background: var(--viz-carousel-hover);
+}
+
+.viz-carousel-controls > button,
+.viz-carousel-controls [data-lucide],
+.viz-carousel-controls .lucide {
+  flex-shrink: 0;
+}
+
+.viz-carousel-picker {
+  min-width: 0;
+}
+
+.viz-carousel-picker > summary {
+  min-width: 0;
+  list-style: none;
+}
+
+.viz-carousel-picker > summary::-webkit-details-marker {
+  display: none;
+}
+
+.viz-carousel-count {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.viz-carousel-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viz-carousel-options {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  left: 0;
+  display: flex;
+  max-height: 240px;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+  box-shadow: 0 4px 12px light-dark(rgb(0 0 0 / 6%), rgb(0 0 0 / 25%));
+}
+
+.viz-carousel-options > button {
+  border-radius: max(0px, calc(var(--radius-lg) - 5px)) !important;
+  width: 100% !important;
+  min-height: 28px;
+  justify-content: flex-start !important;
+  padding: 4px 8px !important;
+  font-size: var(--font-size-small) !important;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.viz-carousel-options > [aria-current="true"],
+.viz-carousel-options > button:hover {
+  background: var(--viz-carousel-hover) !important;
+}
+
+.btn:disabled,
+.nav-link:disabled,
+.nav-link[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  height: calc(12px + 2 * var(--control-spacing, 12px));
+  min-height: calc(12px + 2 * var(--control-spacing, 12px));
+  padding-inline: calc(4px + var(--control-spacing, 12px) / 2);
+  border-color: var(--input);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--popover) 96%, transparent);
+  font-size: calc(var(--font-size-base) * 14 / 16);
+  font-size: round(nearest, calc(var(--font-size-base) * 14 / 16), 1px);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.4285714286;
+}
+.form-control:is(
+  [type="file"],
+  [type="date"],
+  [type="datetime-local"],
+  [type="month"],
+  [type="week"],
+  [type="color"]
+) {
+  height: calc(12px + 2 * var(--control-spacing, 12px));
+  min-height: calc(12px + 2 * var(--control-spacing, 12px));
+  line-height: 18px;
+}
+.form-control:is(
+  [type="date"],
+  [type="datetime-local"],
+  [type="month"],
+  [type="week"]
+) {
+  padding-inline: var(--control-spacing, 12px);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type="file"] {
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+  padding: 0;
+}
+
+.form-control[type="file"]::file-selector-button {
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+  min-height: calc(10px + 2 * var(--control-spacing, 12px));
+  padding-inline: var(--control-spacing, 12px);
+  margin-inline-end: var(--control-spacing, 12px);
+}
+
+.form-control[type="file"]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type="color"] {
+  width: 40px;
+  height: calc(12px + 2 * var(--control-spacing, 12px));
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: var(--corner-shape);
+}
+
+textarea.form-control {
+  height: auto;
+  resize: vertical;
+  min-height: 96px;
+  padding: 8px 10px;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: none;
+}
+.form-control:disabled {
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  opacity: 1;
+}
+.form-control[aria-invalid="true"] {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 20%, transparent);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: fit-content;
+  min-height: calc(12px + 2 * var(--control-spacing, 12px));
+  margin: 0;
+  /* The secondary icon role is 14px at compact density and 16px at web density. */
+  --icon-size: calc(10px + var(--control-spacing, 12px) / 2);
+  /* Settings dropdowns retain a 12px inset and a 4px text-to-chevron gap. */
+  padding: 0 calc(16px + var(--icon-size)) 0 12px;
+  outline: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent calc(50% - 0.6px),
+      var(--muted-foreground) calc(50% - 0.6px) calc(50% + 0.6px),
+      transparent calc(50% + 0.6px)
+    ),
+    linear-gradient(
+      135deg,
+      transparent calc(50% - 0.6px),
+      var(--muted-foreground) calc(50% - 0.6px) calc(50% + 0.6px),
+      transparent calc(50% + 0.6px)
+    );
+  background-position:
+    calc(100% - 12px - var(--icon-size) / 2) 50%,
+    calc(100% - 12px - var(--icon-size) * 0.18) 50%;
+  background-repeat: no-repeat;
+  background-size: calc(var(--icon-size) * 0.32) calc(var(--icon-size) * 0.32);
+  cursor: var(--cursor-interaction, default);
+  font-size: calc(var(--font-size-base) * 14 / 16);
+  font-size: round(nearest, calc(var(--font-size-base) * 14 / 16), 1px);
+  font-weight: var(--font-weight-normal);
+  line-height: 18px;
+}
+
+.form-select :is(option, optgroup) {
+  color: var(--popover-foreground);
+  background-color: var(--popover);
+}
+
+.form-select :is(option, optgroup):disabled {
+  color: var(--muted-foreground);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: light-dark(
+    color-mix(in srgb, var(--foreground) 5.5%, transparent),
+    color-mix(in srgb, var(--foreground) 8%, transparent)
+  );
+}
+
+.form-select:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.form-select:disabled {
+  opacity: 0.4;
+}
+
+.form-check {
+  display: flex;
+  min-height: calc(12px + 2 * var(--control-spacing, 12px));
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type="checkbox"] {
+  corner-shape: round;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  width: calc(10px + var(--control-spacing, 12px) / 2);
+  height: calc(10px + var(--control-spacing, 12px) / 2);
+  border-color: var(--border-strong, var(--input));
+  border-radius: calc(var(--radius-sm) / 2);
+  background-color: transparent;
+  color: var(--foreground);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type="checkbox"]:is(:checked, :indeterminate) {
+  border-color: var(--border-strong, var(--input));
+  background-color: color-mix(in srgb, var(--popover) 96%, transparent);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type="checkbox"]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: "";
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+  background-color: var(--foreground);
+}
+.form-check:not(.form-switch)
+  .form-check-input[type="checkbox"]:indeterminate::before {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 65%;
+  height: 6.65%;
+  margin: auto;
+  border-radius: var(--radius-full);
+  background: var(--foreground);
+  mask: none;
+  content: "";
+}
+
+.form-check-input[type="radio"] {
+  border-radius: var(--radius-full);
+  width: 16px;
+  height: 16px;
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--input);
+}
+
+.form-check-input[type="radio"]:checked {
+  border: 0;
+  background: radial-gradient(
+    circle,
+    var(--primary-foreground) 0 3px,
+    var(--foreground) 3px
+  );
+  box-shadow: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.form-check:not(.form-switch) .form-check-input[type="checkbox"]:focus-visible {
+  border-color: var(--ring);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+.form-check:not(.form-switch) .form-check-input[type="radio"]:disabled,
+.form-check:not(.form-switch)
+  .form-check-input[type="radio"]:disabled
+  + .form-check-label {
+  opacity: 0.5;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  content: "";
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+  border-color: #fff;
+  background: #fff;
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--blue);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+  outline: none;
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  accent-color: var(--primary);
+  height: calc(12px + 2 * var(--control-spacing, 12px));
+  min-height: calc(12px + 2 * var(--control-spacing, 12px));
+  outline: none;
+  border-radius: var(--radius-full);
+  color: var(--foreground);
+  background: transparent;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  background: var(--form-range-track, var(--border));
+  height: 2px;
+  border-radius: var(--radius-full);
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  margin-top: -9px;
+  border-color: transparent;
+  background: currentColor;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Outline the native track and thumb, preserving the larger input hit area. */
+.form-range:focus-visible::-webkit-slider-runnable-track {
+  outline: 2px auto Highlight;
+  outline-color: -webkit-focus-ring-color;
+}
+
+.form-range::-moz-range-track {
+  background: var(--form-range-track, var(--border));
+  height: 2px;
+  border-radius: var(--radius-full);
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  border-color: transparent;
+  background: currentColor;
+  box-shadow: var(--shadow-sm);
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  outline: 2px solid Highlight;
+  outline-offset: 2px;
+}
+
+.form-range:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+  [aria-pressed="true"],
+  [aria-selected="true"],
+  .is-selected
+) {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--blue);
+}
+
+.btn.viz-tile:is([aria-pressed="true"], [aria-selected="true"], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible,
+.nav-link:focus-visible {
+  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.viz-carousel-controls :is(button, summary):focus-visible {
+  outline: 2px solid var(--ring) !important;
+  outline-offset: 2px !important;
+}
+
+/* Web recipes are the default, including on renderers without inline style queries. */
+@supports (border-radius: if(style(--corner-shape: round): 1px; else: 2px)) {
+  /* Match the host's proportional text-sm scale at every text preference. */
+  .tooltip,
+  .viz-badge,
+  .btn,
+  .nav-link,
+  .form-control,
+  .form-select {
+    font-size: if(
+      style(--corner-shape: round): round(
+          nearest,
+          calc(var(--font-size-base) * 14 / 16),
+          1px
+        );
+        else: round(nearest, calc(var(--font-size-base) * 13 / 14), 1px)
+    );
+  }
+
+  .btn-sm {
+    font-size: if(
+      style(--corner-shape: round): round(
+          nearest,
+          calc(var(--font-size-base) * 12 / 16),
+          1px
+        );
+        else: round(nearest, calc(var(--font-size-base) * 12 / 14), 1px)
+    );
+  }
+
+  .btn,
+  .nav-link,
+  .form-select {
+    border-radius: if(
+      style(--corner-shape: round): var(--radius-full); else: var(--radius-lg)
+    );
+  }
+
+  .form-check:not(.form-switch) .form-check-input[type="checkbox"] {
+    border-radius: if(
+      style(--corner-shape: round): calc(var(--radius-sm) / 2);
+        else: calc(var(--radius-lg) * 0.4)
+    );
+  }
+
+  .tooltip {
+    font-weight: if(
+      style(--corner-shape: round): 600; else: var(--font-weight-normal)
+    );
+  }
+}
+
+@media (pointer: coarse) {
+  .viz-carousel:has(> .viz-carousel-controls) {
+    min-height: calc(76px + var(--viz-carousel-picker-height, 0px));
+    padding-bottom: 76px;
+  }
+
+  .btn,
+  .nav-link,
+  .viz-carousel-controls button,
+  .viz-carousel-picker > summary,
+  .form-control,
+  .form-select {
+    --btn-size: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Keep small-screen WebKit from zooming when a text field receives focus. */
+  .form-control,
+  .form-select {
+    font-size: max(16px, calc(var(--font-size-base) * 14 / 16));
+    font-size: max(
+      16px,
+      round(nearest, calc(var(--font-size-base) * 14 / 16), 1px)
+    );
+  }
+  .form-control:is(
+    [type="file"],
+    [type="date"],
+    [type="datetime-local"],
+    [type="month"],
+    [type="week"],
+    [type="time"],
+    [type="color"]
+  ) {
+    height: 44px;
+    min-height: 44px;
+    font-size: max(16px, calc(var(--font-size-base) * 14 / 16));
+    font-size: max(
+      16px,
+      round(nearest, calc(var(--font-size-base) * 14 / 16), 1px)
+    );
+  }
+
+  .form-control[type="file"]::file-selector-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .form-control-color[type="color"] {
+    width: 44px;
+    height: 44px;
+  }
+
+  .form-control:is(
+    [type="date"],
+    [type="datetime-local"],
+    [type="month"],
+    [type="time"],
+    [type="week"]
+  ) {
+    min-width: 0;
+    max-width: 100%;
+    padding-block: 8px;
+  }
+
+  .form-check {
+    min-height: 44px;
+    padding-inline: 15px;
+  }
+
+  .form-check-input {
+    position: relative;
+  }
+
+  .form-check-input::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    content: "";
+    transform: translate(-50%, -50%);
+  }
+
+  .form-check-label {
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .form-range {
+    height: 44px;
+    touch-action: pan-y;
+  }
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget > svg {
+  width: 100%;
+}
+
+/* Model-authored chart rules can otherwise stretch icons after these styles load. */
+svg.lucide {
+  display: block;
+  width: var(--icon-size) !important;
+  height: var(--icon-size) !important;
+  flex: none;
+  margin: 0 !important;
+  stroke-width: 1.6;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html>body{padding:24px 16px;margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif} :root{--color-text-secondary:light-dark(rgb(92 99 110),rgb(177 184 195))}</style>
+</head>
+<body>
+<div id="grasp-loop-demo">
+  <style>
+    #grasp-loop-demo { color:var(--foreground); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; display:grid; gap:calc(var(--font-size-base) * .8); max-width:900px; margin-inline:auto; }
+    #grasp-loop-demo .heading { display:grid; gap:calc(var(--font-size-base) * .4); }
+    #grasp-loop-demo .play-row { display:flex; align-items:center; flex-wrap:wrap; gap:calc(var(--font-size-base) * .75); }
+    #grasp-loop-demo .stage-name { font-weight:500; }
+    #grasp-loop-demo .plot-wrap { width:100%; min-width:0; }
+    #grasp-loop-demo .scene { display:block; width:100%; overflow:visible; }
+    #grasp-loop-demo .scene text { font:inherit; fill:var(--foreground); }
+    #grasp-loop-demo .scene .secondary { fill:var(--muted-foreground); }
+    #grasp-loop-demo .floor { fill:color-mix(in srgb,var(--foreground) 2%,var(--background)); stroke:var(--border); stroke-width:1; }
+    #grasp-loop-demo .guide { stroke:var(--border); stroke-width:1; fill:none; }
+    #grasp-loop-demo .route { stroke:color-mix(in srgb,var(--foreground) 25%,var(--background)); stroke-width:1.5; fill:none; }
+    #grasp-loop-demo .travel { stroke:var(--viz-series-1); stroke-width:2; fill:none; }
+    #grasp-loop-demo .landmark { fill:var(--background); stroke:var(--muted-foreground); stroke-width:1.2; }
+    #grasp-loop-demo .hand-fill { fill:color-mix(in srgb,var(--foreground) 9%,var(--background)); stroke:color-mix(in srgb,var(--foreground) 60%,var(--background)); stroke-width:1.2; }
+    #grasp-loop-demo .nail { fill:color-mix(in srgb,var(--foreground) 3%,var(--background)); stroke:color-mix(in srgb,var(--foreground) 25%,var(--background)); stroke-width:.8; }
+    #grasp-loop-demo .knuckles { fill:none; stroke:color-mix(in srgb,var(--foreground) 32%,var(--background)); stroke-width:1; }
+    #grasp-loop-demo .actuator { fill:var(--background); stroke:var(--foreground); stroke-width:1; }
+    #grasp-loop-demo .force { fill:none; stroke:var(--orange); stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
+    #grasp-loop-demo .pulse { fill:none; stroke:var(--orange); stroke-width:2; }
+    #grasp-loop-demo .normal { fill:var(--background); stroke:var(--orange); stroke-width:2; }
+    #grasp-loop-demo .ball { fill:url(#grasp-loop-ball-shade); }
+    #grasp-loop-demo .lane-list { display:grid; gap:calc(var(--font-size-base) * .5); margin:0; }
+    #grasp-loop-demo .lane { display:grid; grid-template-columns:6.5em minmax(0,1fr); align-items:baseline; gap:calc(var(--font-size-base) * .75); }
+    #grasp-loop-demo dt { color:var(--muted-foreground); font-weight:400; }
+    #grasp-loop-demo dd { margin:0; min-width:0; overflow-wrap:anywhere; }
+    #grasp-loop-demo .timeline { display:grid; gap:calc(var(--font-size-base) * .25); }
+    #grasp-loop-demo .timeline-title { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:calc(var(--font-size-base) * .5); }
+    #grasp-loop-demo .timeline-ticks { display:grid; grid-template-columns:repeat(13,minmax(0,1fr)); color:var(--muted-foreground); text-align:center; }
+    #grasp-loop-demo .timeline-ticks span[aria-current="step"] { color:var(--foreground); font-weight:500; }
+    #grasp-loop-demo .timeline-ticks span:first-child { text-align:left; }
+    #grasp-loop-demo .timeline-ticks span:last-child { text-align:right; }
+    #grasp-loop-demo .legend { display:flex; flex-wrap:wrap; gap:calc(var(--font-size-base) * .75); align-items:center; color:var(--muted-foreground); }
+    #grasp-loop-demo .legend span { display:inline-flex; align-items:center; gap:calc(var(--font-size-base) * .3); }
+    #grasp-loop-demo .swatch { width:9px; height:9px; border-radius:50%; display:inline-block; }
+    #grasp-loop-demo .blue { background:var(--blue); }
+    #grasp-loop-demo .green { background:var(--green); }
+    #grasp-loop-demo .orange { background:var(--orange); }
+    #grasp-loop-demo .gate-row { display:flex; flex-wrap:wrap; gap:calc(var(--font-size-base) * .7); }
+    #grasp-loop-demo .gate-row span { color:var(--muted-foreground); }
+    #grasp-loop-demo .gate-row span[data-met="true"] { color:var(--foreground); }
+    @media (max-width:440px) {
+      #grasp-loop-demo .timeline-ticks span:nth-child(even) { visibility:hidden; }
+      #grasp-loop-demo .lane { grid-template-columns:1fr; gap:calc(var(--font-size-base) * .15); }
+      #grasp-loop-demo .stage-name { flex-basis:100%; }
+    }
+  </style>
+  <div class="heading">
+    <h1>Guide. Grasp. Bring it back.</h1>
+    <p class="text-muted">A top-view walkthrough of the haptic guidance demo.</p>
+    <div class="text-small text-muted">Illustrative timing · No hardware connection</div>
+  </div>
+  <div class="play-row">
+    <button id="grasp-loop-play" class="btn btn-primary" type="button">Play demo</button>
+    <button id="grasp-loop-previous" class="btn" type="button" aria-label="Previous step">Previous</button>
+    <button id="grasp-loop-next" class="btn" type="button" aria-label="Next step">Next</button>
+    <span id="grasp-loop-stage" class="stage-name">T0 · Ready & record</span>
+  </div>
+  <div class="plot-wrap">
+    <svg id="grasp-loop-scene" class="scene" role="img" aria-labelledby="grasp-loop-scene-title grasp-loop-scene-desc">
+      <title id="grasp-loop-scene-title">A right hand follows an L-shaped route to grasp a ball, carry it back and release it.</title>
+      <desc id="grasp-loop-scene-desc">The blue ball stays at the pickup point. The right hand moves forward, then left with the fingers half-open. After a grab cue, the thumb and index finger pinch. The green ball follows the hand right and back. When the fingers deliberately open, the ball turns blue and stays at the drop point.</desc>
+      <defs>
+        <radialGradient id="grasp-loop-ball-shade" cx="32%" cy="28%" r="76%">
+          <stop offset="0" id="grasp-loop-ball-light" stop-color="color-mix(in srgb,var(--blue) 45%,var(--background))"></stop>
+          <stop offset=".45" id="grasp-loop-ball-base" stop-color="var(--blue)"></stop>
+          <stop offset="1" id="grasp-loop-ball-dark" stop-color="color-mix(in srgb,var(--blue) 75%,var(--foreground))"></stop>
+        </radialGradient>
+      </defs>
+      <rect id="grasp-loop-floor" class="floor"></rect>
+      <path id="grasp-loop-guides" class="guide"></path>
+      <path id="grasp-loop-route" class="route"></path>
+      <path id="grasp-loop-travel" class="travel"></path>
+      <circle id="grasp-loop-origin" class="landmark" r="5"></circle>
+      <circle id="grasp-loop-turn" class="landmark" r="5"></circle>
+      <circle id="grasp-loop-pickup" class="landmark" r="5"></circle>
+      <text id="grasp-loop-origin-label">Start / drop</text>
+      <text id="grasp-loop-turn-label">Turn</text>
+      <text id="grasp-loop-pickup-label">Pick up</text>
+      <text id="grasp-loop-recording" class="secondary text-small">REC ready</text>
+      <g id="grasp-loop-hand" aria-hidden="true">
+        <path id="grasp-loop-hand-shape" class="hand-fill"></path>
+        <path class="knuckles" d="M32 30 Q38 34 45 31 M47 41 Q53 45 59 42 M61 54 Q66 57 71 53 M20 93 Q34 97 49 93 M8 54 Q13 61 12 71"></path>
+        <path id="grasp-loop-index-crease" class="knuckles"></path>
+        <ellipse id="grasp-loop-index-nail" class="nail" rx="5" ry="7"></ellipse>
+        <ellipse id="grasp-loop-thumb-nail" class="nail" rx="5" ry="6"></ellipse>
+        <rect class="actuator" x="20" y="65" width="23" height="15" rx="3"></rect>
+        <path class="knuckles" d="M25 72.5 H38"></path>
+      </g>
+      <circle id="grasp-loop-ball" class="ball" r="14"></circle>
+      <g id="grasp-loop-feedback" aria-hidden="true">
+        <path id="grasp-loop-force" class="force"></path>
+        <circle id="grasp-loop-normal" class="normal" r="14"></circle>
+        <text id="grasp-loop-normal-label" text-anchor="middle" dominant-baseline="central">N</text>
+        <circle id="grasp-loop-pulse" class="pulse"></circle>
+      </g>
+      <text id="grasp-loop-ball-label" class="text-small">FREE</text>
+    </svg>
+  </div>
+  <dl class="lane-list" aria-live="polite" aria-atomic="true" id="grasp-loop-lanes">
+    <div class="lane"><dt>Operator</dt><dd id="grasp-loop-operator">B · Start separate top and side recordings.</dd></div>
+    <div class="lane"><dt>Participant</dt><dd id="grasp-loop-participant">Keep the thumb and index finger half-open at the start.</dd></div>
+    <div class="lane"><dt>System</dt><dd id="grasp-loop-system">WAIT CUE · The blue ball stays at the pickup point.</dd></div>
+  </dl>
+  <div id="grasp-loop-gates" class="gate-row text-small" aria-label="Three conditions required to start a grasp">
+    <span id="grasp-loop-gate-cue">○ Cue sent</span>
+    <span id="grasp-loop-gate-near">○ Near the ball</span>
+    <span id="grasp-loop-gate-pinch">○ Open → pinch</span>
+  </div>
+  <div class="timeline">
+    <div class="timeline-title">
+      <label for="grasp-loop-seek" class="form-label">Timeline · drag to explore</label>
+      <span id="grasp-loop-progress" class="text-small text-muted tabular-nums">1 / 13</span>
+    </div>
+    <input id="grasp-loop-seek" class="form-range" type="range" min="0" max="13" step=".01" value="0" aria-valuetext="T0 Ready & record">
+    <div id="grasp-loop-ticks" class="timeline-ticks text-small" aria-hidden="true"></div>
+  </div>
+  <div class="legend text-small">
+    <span><i class="swatch blue"></i>Free / released</span>
+    <span><i class="swatch green"></i>Held</span>
+    <span><i class="swatch orange"></i>Arrow: direction · N: stop · ring: one vibration</span>
+  </div>
+  <script>
+    (() => {
+      const root = document.getElementById('grasp-loop-demo');
+      if (!root) return;
+      const get = name => document.getElementById('grasp-loop-' + name);
+      const stages = [
+        {name:'Ready & record',duration:2.2,operator:'B · Start separate top and side recordings.',participant:'Keep the thumb and index finger half-open at the start.',system:'WAIT CUE · The blue ball stays at the pickup point.'},
+        {name:'Move forward',duration:4.2,operator:'W · Send a Forward force cue.',participant:'Move forward with the fingers half-open.',system:'No grab cue yet. The ball cannot attach.',direction:[0,-1]},
+        {name:'Stop at the turn',duration:2.2,operator:'Space · Send a Normal force cue.',participant:'Stop moving. Keep the fingers half-open.',system:'Normal force means stop the hand; it does not grab or release the ball.',normal:true},
+        {name:'Move left',duration:4.2,operator:'A · Send a Left force cue.',participant:'Move left toward the ball with the fingers half-open.',system:'Proximity alone cannot attach the ball.',direction:[-1,0]},
+        {name:'Stop near the ball',duration:2.2,operator:'Space · Send a Normal force cue.',participant:'Stop beside the ball. Keep the thumb and index finger apart.',system:'WAIT CUE · Ready for the operator to allow a grasp.',normal:true},
+        {name:'Cue the grasp',duration:2.7,operator:'G · Send one short vibration to cue the grasp.',participant:'Feel the cue, then prepare to pinch.',system:'Cue sent · PINCH TO GRAB'},
+        {name:'Pinch & confirm',duration:3.8,operator:'No key needed. Do not press G again.',participant:'Close the thumb and index finger near the ball, then hold the pinch.',system:'All three conditions enable a grasp. One short confirmation vibration follows automatically.'},
+        {name:'Carry right',duration:4.2,operator:'D · After confirmation ends, send a Right force cue.',participant:'Keep the pinch and carry the ball to the right.',system:'HELD · The green ball follows the hand.',direction:[1,0]},
+        {name:'Stop at the turn',duration:2.2,operator:'Space · Send a Normal force cue.',participant:'Stop moving, but keep holding the pinch.',system:'HELD · Stopping the hand does not release the ball.',normal:true},
+        {name:'Carry back',duration:4.2,operator:'S · Send a Back force cue.',participant:'Keep the pinch and move back toward the drop point.',system:'HELD · Crossing a quadrant boundary does not release the ball.',direction:[0,1]},
+        {name:'Stop at the drop point',duration:2.2,operator:'Space · Send a Normal force cue.',participant:'Stop at the drop point. Keep holding the pinch.',system:'HELD · The ball has not been released yet.',normal:true},
+        {name:'Open & release',duration:3.2,operator:'Say “Release” during rehearsal. There is no dedicated release vibration.',participant:'Open the thumb and index finger. Keep them open until the ball turns blue.',system:'Release requires at least 350 ms of opening and 3 valid detection frames.'},
+        {name:'Finish the trial',duration:2.8,operator:'B · Stop both recordings. Q exits the application.',participant:'Move the hand away. Leave the ball at the drop point.',system:'RELEASED · The blue ball stays put. A new grasp needs a new G cue.'}
+      ];
+      const nodes = {};
+      ['scene','floor','guides','route','travel','origin','turn','pickup','origin-label','turn-label','pickup-label','hand','ball','force','normal','normal-label','pulse','ball-label','recording','operator','participant','system','stage','seek','play','ticks','progress','gate-cue','gate-near','gate-pinch','ball-light','ball-base','ball-dark','hand-shape','index-crease','index-nail','thumb-nail','previous','next'].forEach(n => nodes[n] = get(n));
+      stages.forEach((s,i) => {
+        const span = document.createElement('span');
+        span.textContent = 'T' + i;
+        nodes.ticks.appendChild(span);
+      });
+      let progress = 0, playing = false, lastTime = 0, frameId = 0, width = 736;
+      let lastAnnouncement = '', currentColor = '';
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const clamp = (v,a,b) => Math.min(b,Math.max(a,v));
+      const ease = t => { t=clamp(t,0,1); return t*t*(3-2*t); };
+      const mix = (a,b,t) => [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
+      const attrs = (el,values) => Object.entries(values).forEach(([k,v]) => el.setAttribute(k,String(v)));
+      const point = (el,p) => attrs(el,{cx:p[0],cy:p[1]});
+      const textPosition = (el,x,y,anchor='start') => attrs(el,{x,y,'text-anchor':anchor});
+      const statusText = (el,value) => { if(el.textContent !== value) el.textContent=value; };
+      function render() {
+        const index = Math.min(12,Math.floor(progress));
+        const u = progress>=13 ? 1 : progress-index;
+        const stage=stages[index];
+      const height=width<440 ? 330 : 420;
+        const scale=clamp(width/650,.68,1.16);
+        const start=[width*.72,height-125*scale-40];
+        const turn=[start[0],width<440 ? 84 : 96];
+        const pickup=[width*.25,turn[1]];
+        const movement = reducedMotion.matches ? (u>=.95?1:0) : ease((u-.16)/.84);
+        let hand=start.slice(), openness=1, held=false, released=false;
+        if(index===1) hand=mix(start,turn,movement);
+        if(index===2) hand=turn.slice();
+        if(index===3) hand=mix(turn,pickup,movement);
+        if(index>=4 && index<=6) hand=pickup.slice();
+        if(index===6) {
+          openness=1-ease(u/.4);
+          held=u>=.45;
+        }
+        if(index>=7 && index<=10) {openness=0;held=true;}
+        if(index===7) hand=mix(pickup,turn,movement);
+        if(index===8) hand=turn.slice();
+        if(index===9) hand=mix(turn,start,movement);
+        if(index===11) {
+          hand=start.slice();
+          openness=ease((u-.1)/.35);
+          held=u<.65;
+          released=u>=.65;
+        }
+        if(index===12) {
+          hand=mix(start,[start[0]-width*.17,start[1]],ease(u));
+          released=true;
+        }
+        if(reducedMotion.matches) {
+          if(index===6) openness=u<.4?1:0;
+          if(index===11) openness=u<.45?0:1;
+          if(index===12) hand=u<.95?start:[start[0]-width*.17,start[1]];
+        }
+        const ball=held ? hand : released ? start : pickup;
+        attrs(nodes.scene,{viewBox:'0 0 '+width+' '+height,height});
+        attrs(nodes.floor,{x:16,y:24,width:width-32,height:height-40,rx:4});
+        attrs(nodes.guides,{d:'M'+width/2+' 24 V'+(height-16)+' M16 '+(height/2)+' H'+(width-16)});
+        attrs(nodes.route,{d:'M'+start.join(' ')+' L'+turn.join(' ')+' L'+pickup.join(' ')});
+        let travel='';
+        if(index===1) travel='M'+start.join(' ')+' L'+hand.join(' ');
+        if(index===3) travel='M'+turn.join(' ')+' L'+hand.join(' ');
+        if(index===7) travel='M'+pickup.join(' ')+' L'+hand.join(' ');
+        if(index===9) travel='M'+turn.join(' ')+' L'+hand.join(' ');
+        attrs(nodes.travel,{d:travel});
+        point(nodes.origin,start);point(nodes.turn,turn);point(nodes.pickup,pickup);
+        textPosition(nodes['pickup-label'],pickup[0],43,'middle');
+        textPosition(nodes['turn-label'],turn[0],43,'middle');
+        textPosition(nodes['origin-label'],start[0],height-28,'middle');
+        textPosition(nodes.recording,28,height-28);
+        const recording=index===0 && u<.18 ? 'REC ready' : index<12 ? 'REC · top + side' : 'REC ended';
+        statusText(nodes.recording,width<440?(index<12?'REC':'REC ended'):recording);
+        attrs(nodes.hand,{transform:'translate('+hand.join(' ')+') scale('+scale+')'});
+        // A continuous right-hand contour; thumb left, three relaxed fingers right.
+        const ix=15+14*openness, iy=-12-8*openness;
+        const tx=-21-11*openness, ty=7+9*openness;
+        const handPath='M15 112 L14 89 C4 81 -3 70 -7 60 Q-19 53 '+(tx-5)+' '+(ty+14)
+          +' Q'+(tx-11)+' '+(ty+3)+' '+(tx-5)+' '+(ty-3)
+          +' Q'+(tx+3)+' '+(ty-10)+' '+(tx+9)+' '+(ty-2)
+          +' Q'+(tx+15)+' '+(ty+14)+' 5 38 Q9 43 12 39 C11 21 '+(ix-16)+' '+(iy+7)+' '+(ix-8)+' '+(iy+1)
+          +' Q'+(ix-10)+' '+(iy-5)+' '+ix+' '+(iy-7)
+          +' Q'+(ix+9)+' '+(iy-8)+' '+(ix+9)+' '+(iy+3)
+          +' C'+(ix+16)+' '+(iy+18)+' 35 20 30 29 L31 18 Q33 9 40 12 Q47 15 46 28 L46 35 L47 27'
+          +' Q49 19 56 23 Q63 26 61 39 L60 45 Q65 34 71 41 Q77 48 70 61'
+          +' L63 76 Q60 86 52 92 L50 112 Z';
+        attrs(nodes['hand-shape'],{d:handPath});
+        attrs(nodes['index-crease'],{d:'M'+(ix-6)+' '+(iy+25)+' Q'+ix+' '+(iy+28)+' '+(ix+7)+' '+(iy+25)});
+        point(nodes['index-nail'],[ix,iy+3]);
+        attrs(nodes['index-nail'],{transform:'rotate('+(-25+35*openness)+' '+ix+' '+(iy+3)+')'});
+        point(nodes['thumb-nail'],[tx,ty+4]);
+        attrs(nodes['thumb-nail'],{transform:'rotate(-35 '+tx+' '+(ty+4)+')'});
+        point(nodes.ball,ball);attrs(nodes.ball,{r:14*scale});
+        const color=held?'var(--green)':'var(--blue)';
+        if(currentColor!==color) {
+          attrs(nodes['ball-base'],{'stop-color':color});
+          attrs(nodes['ball-light'],{'stop-color':'color-mix(in srgb,'+color+' 45%,var(--background))'});
+          attrs(nodes['ball-dark'],{'stop-color':'color-mix(in srgb,'+color+' 75%,var(--foreground))'});
+          currentColor=color;
+        }
+        textPosition(nodes['ball-label'],ball[0]-24*scale,ball[1]-10*scale,'end');
+        attrs(nodes['ball-label'],{visibility:width<440?'hidden':'visible'});
+        statusText(nodes['ball-label'],held?'HELD':released?'RELEASED':'FREE');
+        const actuator=[hand[0]+31.5*scale,hand[1]+72.5*scale];
+        const forceOn=!!stage.direction && u<.2;
+        let arrow='';
+        if(forceOn) {
+          const d=stage.direction, from=[actuator[0],actuator[1]];
+          const to=[from[0]+d[0]*47,from[1]+d[1]*47];
+          const perpendicular=[-d[1],d[0]];
+          arrow='M'+from.join(' ')+' L'+to.join(' ')+' M'+(to[0]-d[0]*9+perpendicular[0]*5)+' '+(to[1]-d[1]*9+perpendicular[1]*5)+' L'+to.join(' ')+' L'+(to[0]-d[0]*9-perpendicular[0]*5)+' '+(to[1]-d[1]*9-perpendicular[1]*5);
+        }
+        attrs(nodes.force,{d:arrow});
+        const normalOn=!!stage.normal && u<.4;
+        point(nodes.normal,actuator);
+        attrs(nodes.normal,{visibility:normalOn?'visible':'hidden'});
+        textPosition(nodes['normal-label'],actuator[0],actuator[1],'middle');
+        attrs(nodes['normal-label'],{visibility:normalOn?'visible':'hidden'});
+        let pulseProgress=-1;
+        if(index===5 && u>=.08 && u<=.43) pulseProgress=(u-.08)/.35;
+        if(index===6 && u>=.67 && u<=.93) pulseProgress=(u-.67)/.26;
+        point(nodes.pulse,actuator);
+        attrs(nodes.pulse,{r:reducedMotion.matches?26:12+32*Math.max(0,pulseProgress),
+          opacity:pulseProgress<0?0:reducedMotion.matches?1:1-pulseProgress});
+        let system=stage.system;
+        if(index===5) system=u<.08?'Sending the grab cue…':'One short vibration · PINCH TO GRAB';
+        if(index===6) system=u<.45?'Cue sent + near the ball · Detecting a fresh open-to-pinch gesture.':u<.67?'HELD · The ball is green. Confirmation waits for the cue to finish.':'HELD · One short confirmation vibration, sent automatically.';
+        if(index===11) system=released?'RELEASED · The blue ball stays at the drop point.':'Confirming an open hand · At least 350 ms and 3 valid frames.';
+        const announcement=index+'|'+system;
+        if(lastAnnouncement!==announcement) {
+          statusText(nodes.operator,stage.operator);
+          statusText(nodes.participant,stage.participant);
+          statusText(nodes.system,system);
+          lastAnnouncement=announcement;
+        }
+        const prompted=index>=5 && !(index===5 && u<.08) && !released;
+        const nearby=index>=4 && index<=6;
+        const pinched=held;
+        [[nodes['gate-cue'],prompted,'Cue sent'],[nodes['gate-near'],nearby||held,'Near the ball'],[nodes['gate-pinch'],pinched,'Open → pinch']].forEach(([node,met,label])=>{
+          attrs(node,{'data-met':met});
+          statusText(node,(met?'✓ ':'○ ')+label);
+        });
+        get('gates').setAttribute('aria-label',held?'Grasp conditions satisfied. The ball stays held during transport.':'Three conditions required to start a grasp');
+        if(held && index>=7) {
+          statusText(nodes['gate-near'],'✓ Grasp latched · Moving away from the pickup point is allowed.');
+          nodes['gate-cue'].hidden=true;
+          nodes['gate-pinch'].hidden=true;
+        } else {
+          nodes['gate-cue'].hidden=false;
+          nodes['gate-pinch'].hidden=false;
+        }
+        statusText(nodes.stage,'T'+index+' · '+stage.name);
+        nodes.seek.value=progress;
+        attrs(nodes.seek,{'aria-valuetext':'T'+index+' '+stage.name});
+        statusText(nodes.progress,(index+1)+' / 13');
+        Array.from(nodes.ticks.children).forEach((node,i)=>{
+          statusText(node,width<440?String(i):'T'+i);
+          if(i===index) node.setAttribute('aria-current','step'); else node.removeAttribute('aria-current');
+        });
+        nodes.previous.disabled=progress===0;
+        nodes.next.disabled=progress>=13;
+        statusText(nodes.play,playing?'Pause':progress>=13?'Replay':progress>0?'Continue':'Play demo');
+      }
+      function frame(now) {
+        if(!playing) return;
+        if(lastTime) {
+          let seconds=Math.min(.1,(now-lastTime)/1000);
+          while(seconds>0 && progress<13) {
+            const index=Math.min(12,Math.floor(progress));
+            const available=(index+1-progress)*stages[index].duration;
+            const consumed=Math.min(seconds,available);
+            progress+=consumed/stages[index].duration;
+            seconds-=consumed;
+            if(available<.000001) progress=index+1;
+          }
+        }
+        lastTime=now;
+        if(progress>=13) {progress=13;playing=false;}
+        render();
+        if(playing) frameId=requestAnimationFrame(frame);
+      }
+      nodes.play.addEventListener('click',()=>{
+        if(playing) {
+          playing=false;cancelAnimationFrame(frameId);
+        } else {
+          if(progress>=13) progress=0;
+          playing=true;lastTime=0;frameId=requestAnimationFrame(frame);
+        }
+        render();
+      });
+      nodes.seek.addEventListener('input',()=>{
+        playing=false;cancelAnimationFrame(frameId);
+        progress=clamp(Number(nodes.seek.value),0,13);render();
+      });
+      nodes.previous.addEventListener('click',()=>{
+        playing=false;cancelAnimationFrame(frameId);
+        progress=Math.max(0,Math.floor(progress)-1);render();
+      });
+      nodes.next.addEventListener('click',()=>{
+        playing=false;cancelAnimationFrame(frameId);
+        progress=Math.min(13,Math.floor(progress)+1);render();
+      });
+      document.addEventListener('visibilitychange',()=>{
+        if(document.hidden && playing) {
+          playing=false;cancelAnimationFrame(frameId);render();
+        }
+      });
+      reducedMotion.addEventListener('change',render);
+      new ResizeObserver(entries=>{
+        const next=entries[0]?.contentRect.width;
+        if(next>0) {width=next;render();}
+      }).observe(root);
+      render();
+    })();
+  </script>
+</div>
+
+</body>
+</html>
