@@ -1531,6 +1531,8 @@ html>body{padding:24px 16px;margin:0;font-family:system-ui,-apple-system,"Segoe 
     #grasp-loop-demo .landmark { fill:var(--background); stroke:var(--muted-foreground); stroke-width:1.2; }
     #grasp-loop-demo .hand-fill { fill:color-mix(in srgb,var(--foreground) 9%,var(--background)); stroke:color-mix(in srgb,var(--foreground) 60%,var(--background)); stroke-width:1.2; }
     #grasp-loop-demo .nail { fill:color-mix(in srgb,var(--foreground) 3%,var(--background)); stroke:color-mix(in srgb,var(--foreground) 25%,var(--background)); stroke-width:.8; }
+    #grasp-loop-demo .finger-outline { fill:none; stroke:color-mix(in srgb,var(--foreground) 60%,var(--background)); stroke-linecap:round; stroke-linejoin:round; }
+    #grasp-loop-demo .finger-fill { fill:none; stroke:color-mix(in srgb,var(--foreground) 9%,var(--background)); stroke-linecap:round; stroke-linejoin:round; }
     #grasp-loop-demo .knuckles { fill:none; stroke:color-mix(in srgb,var(--foreground) 32%,var(--background)); stroke-width:1; }
     #grasp-loop-demo .actuator { fill:var(--background); stroke:var(--foreground); stroke-width:1; }
     #grasp-loop-demo .force { fill:none; stroke:var(--orange); stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
@@ -1576,7 +1578,7 @@ html>body{padding:24px 16px;margin:0;font-family:system-ui,-apple-system,"Segoe 
   <div class="plot-wrap">
     <svg id="grasp-loop-scene" class="scene" role="img" aria-labelledby="grasp-loop-scene-title grasp-loop-scene-desc">
       <title id="grasp-loop-scene-title">A right hand follows an L-shaped route to grasp a ball, carry it back and release it.</title>
-      <desc id="grasp-loop-scene-desc">The blue ball stays at the pickup point. The right hand moves forward, then left with the fingers half-open. After a grab cue, the thumb and index finger pinch. The green ball follows the hand right and back. When the fingers deliberately open, the ball turns blue and stays at the drop point.</desc>
+      <desc id="grasp-loop-scene-desc">The blue ball stays at the pickup point. The right hand moves forward, then left in a relaxed half-open posture. After a grab cue, all four fingers curl around the ball while the thumb closes from the side. The green ball follows the hand right and back. When the fingers deliberately open, the ball turns blue and stays at the drop point.</desc>
       <defs>
         <radialGradient id="grasp-loop-ball-shade" cx="32%" cy="28%" r="76%">
           <stop offset="0" id="grasp-loop-ball-light" stop-color="color-mix(in srgb,var(--blue) 45%,var(--background))"></stop>
@@ -1596,13 +1598,14 @@ html>body{padding:24px 16px;margin:0;font-family:system-ui,-apple-system,"Segoe 
       <text id="grasp-loop-pickup-label">Pick up</text>
       <text id="grasp-loop-recording" class="secondary text-small">REC ready</text>
       <g id="grasp-loop-hand" aria-hidden="true">
-        <path id="grasp-loop-hand-shape" class="hand-fill"></path>
-        <path class="knuckles" d="M32 30 Q38 34 45 31 M47 41 Q53 45 59 42 M61 54 Q66 57 71 53 M20 93 Q34 97 49 93 M8 54 Q13 61 12 71"></path>
-        <path id="grasp-loop-index-crease" class="knuckles"></path>
-        <ellipse id="grasp-loop-index-nail" class="nail" rx="5" ry="7"></ellipse>
-        <ellipse id="grasp-loop-thumb-nail" class="nail" rx="5" ry="6"></ellipse>
-        <rect class="actuator" x="20" y="65" width="23" height="15" rx="3"></rect>
-        <path class="knuckles" d="M25 72.5 H38"></path>
+        <g id="grasp-loop-fingers"></g>
+        <path id="grasp-loop-thumb-outline" class="finger-outline" stroke-width="19"></path>
+        <path id="grasp-loop-thumb-fill" class="finger-fill" stroke-width="16.5"></path>
+        <path class="hand-fill" d="M-31 34 Q-31 24 -24 23 Q-13 26 -3 25 Q13 26 25 33 Q34 38 33 49 L29 75 Q25 87 20 95 L20 112 L-17 112 L-19 95 Q-33 80 -34 63 Z"></path>
+        <path class="knuckles" d="M-25 36 Q-20 40 -14 37 M-10 34 Q-4 38 2 35 M7 37 Q13 41 19 39 M22 45 Q27 48 31 46 M-15 96 Q1 99 17 96 M-24 53 Q-16 64 -19 77"></path>
+        <ellipse id="grasp-loop-thumb-nail" class="nail" rx="5.5" ry="6"></ellipse>
+        <rect class="actuator" x="-9" y="63" width="22" height="15" rx="3"></rect>
+        <path class="knuckles" d="M-4 70.5 H8"></path>
       </g>
       <circle id="grasp-loop-ball" class="ball" r="14"></circle>
       <g id="grasp-loop-feedback" aria-hidden="true">
@@ -1616,13 +1619,13 @@ html>body{padding:24px 16px;margin:0;font-family:system-ui,-apple-system,"Segoe 
   </div>
   <dl class="lane-list" aria-live="polite" aria-atomic="true" id="grasp-loop-lanes">
     <div class="lane"><dt>Operator</dt><dd id="grasp-loop-operator">B · Start separate top and side recordings.</dd></div>
-    <div class="lane"><dt>Participant</dt><dd id="grasp-loop-participant">Keep the thumb and index finger half-open at the start.</dd></div>
+    <div class="lane"><dt>Participant</dt><dd id="grasp-loop-participant">Keep the hand relaxed and half-open at the start.</dd></div>
     <div class="lane"><dt>System</dt><dd id="grasp-loop-system">WAIT CUE · The blue ball stays at the pickup point.</dd></div>
   </dl>
   <div id="grasp-loop-gates" class="gate-row text-small" aria-label="Three conditions required to start a grasp">
     <span id="grasp-loop-gate-cue">○ Cue sent</span>
     <span id="grasp-loop-gate-near">○ Near the ball</span>
-    <span id="grasp-loop-gate-pinch">○ Open → pinch</span>
+    <span id="grasp-loop-gate-pinch">○ Open → grasp</span>
   </div>
   <div class="timeline">
     <div class="timeline-title">
@@ -1643,22 +1646,22 @@ html>body{padding:24px 16px;margin:0;font-family:system-ui,-apple-system,"Segoe 
       if (!root) return;
       const get = name => document.getElementById('grasp-loop-' + name);
       const stages = [
-        {name:'Ready & record',duration:2.2,operator:'B · Start separate top and side recordings.',participant:'Keep the thumb and index finger half-open at the start.',system:'WAIT CUE · The blue ball stays at the pickup point.'},
+        {name:'Ready & record',duration:2.2,operator:'B · Start separate top and side recordings.',participant:'Keep the hand relaxed and half-open at the start.',system:'WAIT CUE · The blue ball stays at the pickup point.'},
         {name:'Move forward',duration:4.2,operator:'W · Send a Forward force cue.',participant:'Move forward with the fingers half-open.',system:'No grab cue yet. The ball cannot attach.',direction:[0,-1]},
         {name:'Stop at the turn',duration:2.2,operator:'Space · Send a Normal force cue.',participant:'Stop moving. Keep the fingers half-open.',system:'Normal force means stop the hand; it does not grab or release the ball.',normal:true},
         {name:'Move left',duration:4.2,operator:'A · Send a Left force cue.',participant:'Move left toward the ball with the fingers half-open.',system:'Proximity alone cannot attach the ball.',direction:[-1,0]},
-        {name:'Stop near the ball',duration:2.2,operator:'Space · Send a Normal force cue.',participant:'Stop beside the ball. Keep the thumb and index finger apart.',system:'WAIT CUE · Ready for the operator to allow a grasp.',normal:true},
-        {name:'Cue the grasp',duration:2.7,operator:'G · Send one short vibration to cue the grasp.',participant:'Feel the cue, then prepare to pinch.',system:'Cue sent · PINCH TO GRAB'},
-        {name:'Pinch & confirm',duration:3.8,operator:'No key needed. Do not press G again.',participant:'Close the thumb and index finger near the ball, then hold the pinch.',system:'All three conditions enable a grasp. One short confirmation vibration follows automatically.'},
-        {name:'Carry right',duration:4.2,operator:'D · After confirmation ends, send a Right force cue.',participant:'Keep the pinch and carry the ball to the right.',system:'HELD · The green ball follows the hand.',direction:[1,0]},
-        {name:'Stop at the turn',duration:2.2,operator:'Space · Send a Normal force cue.',participant:'Stop moving, but keep holding the pinch.',system:'HELD · Stopping the hand does not release the ball.',normal:true},
-        {name:'Carry back',duration:4.2,operator:'S · Send a Back force cue.',participant:'Keep the pinch and move back toward the drop point.',system:'HELD · Crossing a quadrant boundary does not release the ball.',direction:[0,1]},
-        {name:'Stop at the drop point',duration:2.2,operator:'Space · Send a Normal force cue.',participant:'Stop at the drop point. Keep holding the pinch.',system:'HELD · The ball has not been released yet.',normal:true},
-        {name:'Open & release',duration:3.2,operator:'Say “Release” during rehearsal. There is no dedicated release vibration.',participant:'Open the thumb and index finger. Keep them open until the ball turns blue.',system:'Release requires at least 350 ms of opening and 3 valid detection frames.'},
+        {name:'Stop near the ball',duration:2.2,operator:'Space · Send a Normal force cue.',participant:'Stop beside the ball. Keep all fingers relaxed and half-open.',system:'WAIT CUE · Ready for the operator to allow a grasp.',normal:true},
+        {name:'Cue the grasp',duration:2.7,operator:'G · Send one short vibration to cue the grasp.',participant:'Feel the cue, then prepare to close the hand around the ball.',system:'Cue sent · READY TO GRASP'},
+        {name:'Grasp & confirm',duration:3.8,operator:'No key needed. Do not press G again.',participant:'Curl all four fingers around the ball and close the thumb from the side. Hold the grasp.',system:'All three conditions enable a grasp. One short confirmation vibration follows automatically.'},
+        {name:'Carry right',duration:4.2,operator:'D · After confirmation ends, send a Right force cue.',participant:'Keep the hand closed and carry the ball to the right.',system:'HELD · The green ball follows the hand.',direction:[1,0]},
+        {name:'Stop at the turn',duration:2.2,operator:'Space · Send a Normal force cue.',participant:'Stop moving, but keep the hand closed around the ball.',system:'HELD · Stopping the hand does not release the ball.',normal:true},
+        {name:'Carry back',duration:4.2,operator:'S · Send a Back force cue.',participant:'Keep the hand closed and move back toward the drop point.',system:'HELD · Crossing a quadrant boundary does not release the ball.',direction:[0,1]},
+        {name:'Stop at the drop point',duration:2.2,operator:'Space · Send a Normal force cue.',participant:'Stop at the drop point. Keep the hand closed.',system:'HELD · The ball has not been released yet.',normal:true},
+        {name:'Open & release',duration:3.2,operator:'Say “Release” during rehearsal. There is no dedicated release vibration.',participant:'Open all fingers and the thumb. Keep the hand open until the ball turns blue.',system:'Release requires at least 350 ms of opening and 3 valid detection frames.'},
         {name:'Finish the trial',duration:2.8,operator:'B · Stop both recordings. Q exits the application.',participant:'Move the hand away. Leave the ball at the drop point.',system:'RELEASED · The blue ball stays put. A new grasp needs a new G cue.'}
       ];
       const nodes = {};
-      ['scene','floor','guides','route','travel','origin','turn','pickup','origin-label','turn-label','pickup-label','hand','ball','force','normal','normal-label','pulse','ball-label','recording','operator','participant','system','stage','seek','play','ticks','progress','gate-cue','gate-near','gate-pinch','ball-light','ball-base','ball-dark','hand-shape','index-crease','index-nail','thumb-nail','previous','next'].forEach(n => nodes[n] = get(n));
+      ['scene','floor','guides','route','travel','origin','turn','pickup','origin-label','turn-label','pickup-label','hand','ball','force','normal','normal-label','pulse','ball-label','recording','operator','participant','system','stage','seek','play','ticks','progress','gate-cue','gate-near','gate-pinch','ball-light','ball-base','ball-dark','fingers','thumb-outline','thumb-fill','thumb-nail','previous','next'].forEach(n => nodes[n] = get(n));
       stages.forEach((s,i) => {
         const span = document.createElement('span');
         span.textContent = 'T' + i;
@@ -1674,14 +1677,32 @@ html>body{padding:24px 16px;margin:0;font-family:system-ui,-apple-system,"Segoe 
       const point = (el,p) => attrs(el,{cx:p[0],cy:p[1]});
       const textPosition = (el,x,y,anchor='start') => attrs(el,{x,y,'text-anchor':anchor});
       const statusText = (el,value) => { if(el.textContent !== value) el.textContent=value; };
+      const svgElement=(tag,values,parent)=>{
+        const element=document.createElementNS('http://www.w3.org/2000/svg',tag);
+        attrs(element,values);parent.appendChild(element);return element;
+      };
+      const fingers=[
+        {name:'index',base:[-23,38],openJoint:[-28,-2],openTip:[-29,-29],closedJoint:[-31,-7],closedTip:[-19,-12],radius:7,openAngle:-4,closedAngle:-32},
+        {name:'middle',base:[-7,35],openJoint:[-7,-12],openTip:[-7,-43],closedJoint:[-13,-17],closedTip:[-7,-20],radius:7.5,openAngle:0,closedAngle:-12},
+        {name:'ring',base:[10,38],openJoint:[12,-8],openTip:[12,-37],closedJoint:[17,-15],closedTip:[9,-19],radius:7,openAngle:3,closedAngle:15},
+        {name:'little',base:[26,46],openJoint:[31,7],openTip:[32,-21],closedJoint:[35,6],closedTip:[24,-6],radius:6,openAngle:7,closedAngle:38}
+      ].map(finger=>{
+        const group=svgElement('g',{'data-finger':finger.name},nodes.fingers);
+        return {...finger,
+          outline:svgElement('path',{class:'finger-outline','stroke-width':finger.radius*2+2.4},group),
+          fill:svgElement('path',{class:'finger-fill','stroke-width':finger.radius*2},group),
+          crease:svgElement('path',{class:'knuckles'},group),
+          nail:svgElement('ellipse',{class:'nail',rx:finger.radius*.65,ry:6},group)
+        };
+      });
       function render() {
         const index = Math.min(12,Math.floor(progress));
         const u = progress>=13 ? 1 : progress-index;
         const stage=stages[index];
       const height=width<440 ? 330 : 420;
-        const scale=clamp(width/650,.68,1.16);
+        const scale=clamp(width/650,.8,1.16);
         const start=[width*.72,height-125*scale-40];
-        const turn=[start[0],width<440 ? 84 : 96];
+        const turn=[start[0],width<440 ? 106 : 118];
         const pickup=[width*.25,turn[1]];
         const movement = reducedMotion.matches ? (u>=.95?1:0) : ease((u-.16)/.84);
         let hand=start.slice(), openness=1, held=false, released=false;
@@ -1731,25 +1752,25 @@ html>body{padding:24px 16px;margin:0;font-family:system-ui,-apple-system,"Segoe 
         const recording=index===0 && u<.18 ? 'REC ready' : index<12 ? 'REC · top + side' : 'REC ended';
         statusText(nodes.recording,width<440?(index<12?'REC':'REC ended'):recording);
         attrs(nodes.hand,{transform:'translate('+hand.join(' ')+') scale('+scale+')'});
-        // A continuous right-hand contour; thumb left, three relaxed fingers right.
-        const ix=15+14*openness, iy=-12-8*openness;
-        const tx=-21-11*openness, ty=7+9*openness;
-        const handPath='M15 112 L14 89 C4 81 -3 70 -7 60 Q-19 53 '+(tx-5)+' '+(ty+14)
-          +' Q'+(tx-11)+' '+(ty+3)+' '+(tx-5)+' '+(ty-3)
-          +' Q'+(tx+3)+' '+(ty-10)+' '+(tx+9)+' '+(ty-2)
-          +' Q'+(tx+15)+' '+(ty+14)+' 5 38 Q9 43 12 39 C11 21 '+(ix-16)+' '+(iy+7)+' '+(ix-8)+' '+(iy+1)
-          +' Q'+(ix-10)+' '+(iy-5)+' '+ix+' '+(iy-7)
-          +' Q'+(ix+9)+' '+(iy-8)+' '+(ix+9)+' '+(iy+3)
-          +' C'+(ix+16)+' '+(iy+18)+' 35 20 30 29 L31 18 Q33 9 40 12 Q47 15 46 28 L46 35 L47 27'
-          +' Q49 19 56 23 Q63 26 61 39 L60 45 Q65 34 71 41 Q77 48 70 61'
-          +' L63 76 Q60 86 52 92 L50 112 Z';
-        attrs(nodes['hand-shape'],{d:handPath});
-        attrs(nodes['index-crease'],{d:'M'+(ix-6)+' '+(iy+25)+' Q'+ix+' '+(iy+28)+' '+(ix+7)+' '+(iy+25)});
-        point(nodes['index-nail'],[ix,iy+3]);
-        attrs(nodes['index-nail'],{transform:'rotate('+(-25+35*openness)+' '+ix+' '+(iy+3)+')'});
-        point(nodes['thumb-nail'],[tx,ty+4]);
-        attrs(nodes['thumb-nail'],{transform:'rotate(-35 '+tx+' '+(ty+4)+')'});
-        point(nodes.ball,ball);attrs(nodes.ball,{r:14*scale});
+        // Four fingers flex together. A shorter thumb opposes them from the side.
+        fingers.forEach(finger => {
+          const tip=mix(finger.closedTip,finger.openTip,openness);
+          const joint=mix(finger.closedJoint,finger.openJoint,openness);
+          const d='M'+finger.base.join(' ')+' Q'+joint.join(' ')+' '+tip.join(' ');
+          attrs(finger.outline,{d});attrs(finger.fill,{d});
+          const angle=finger.closedAngle+(finger.openAngle-finger.closedAngle)*openness;
+          point(finger.nail,[tip[0],tip[1]+2]);
+          attrs(finger.nail,{ry:3+3*openness,transform:'rotate('+angle+' '+tip[0]+' '+(tip[1]+2)+')'});
+          const crease=mix(joint,tip,.22);
+          attrs(finger.crease,{d:'M'+(crease[0]-4)+' '+crease[1]+' Q'+crease[0]+' '+(crease[1]+2)+' '+(crease[0]+4)+' '+crease[1]});
+        });
+        const thumb=mix([-24,10],[-46,29],openness);
+        const thumbJoint=mix([-38,23],[-38,42],openness);
+        const thumbPath='M-23 57 Q'+thumbJoint.join(' ')+' '+thumb.join(' ');
+        attrs(nodes['thumb-outline'],{d:thumbPath});attrs(nodes['thumb-fill'],{d:thumbPath});
+        point(nodes['thumb-nail'],[thumb[0],thumb[1]+1]);
+        attrs(nodes['thumb-nail'],{transform:'rotate('+(-40+15*openness)+' '+thumb[0]+' '+(thumb[1]+1)+')'});
+        point(nodes.ball,ball);attrs(nodes.ball,{r:18*scale});
         const color=held?'var(--green)':'var(--blue)';
         if(currentColor!==color) {
           attrs(nodes['ball-base'],{'stop-color':color});
@@ -1757,10 +1778,10 @@ html>body{padding:24px 16px;margin:0;font-family:system-ui,-apple-system,"Segoe 
           attrs(nodes['ball-dark'],{'stop-color':'color-mix(in srgb,'+color+' 75%,var(--foreground))'});
           currentColor=color;
         }
-        textPosition(nodes['ball-label'],ball[0]-24*scale,ball[1]-10*scale,'end');
+        textPosition(nodes['ball-label'],ball[0]-(index>=4?62:27)*scale,ball[1]-10*scale,'end');
         attrs(nodes['ball-label'],{visibility:width<440?'hidden':'visible'});
         statusText(nodes['ball-label'],held?'HELD':released?'RELEASED':'FREE');
-        const actuator=[hand[0]+31.5*scale,hand[1]+72.5*scale];
+        const actuator=[hand[0]+2*scale,hand[1]+70.5*scale];
         const forceOn=!!stage.direction && u<.2;
         let arrow='';
         if(forceOn) {
@@ -1782,8 +1803,8 @@ html>body{padding:24px 16px;margin:0;font-family:system-ui,-apple-system,"Segoe 
         attrs(nodes.pulse,{r:reducedMotion.matches?26:12+32*Math.max(0,pulseProgress),
           opacity:pulseProgress<0?0:reducedMotion.matches?1:1-pulseProgress});
         let system=stage.system;
-        if(index===5) system=u<.08?'Sending the grab cue…':'One short vibration · PINCH TO GRAB';
-        if(index===6) system=u<.45?'Cue sent + near the ball · Detecting a fresh open-to-pinch gesture.':u<.67?'HELD · The ball is green. Confirmation waits for the cue to finish.':'HELD · One short confirmation vibration, sent automatically.';
+        if(index===5) system=u<.08?'Sending the grab cue…':'One short vibration · READY TO GRASP';
+        if(index===6) system=u<.45?'Cue sent + near the ball · Detecting a fresh open-to-grasp gesture.':u<.67?'HELD · The ball is green. Confirmation waits for the cue to finish.':'HELD · One short confirmation vibration, sent automatically.';
         if(index===11) system=released?'RELEASED · The blue ball stays at the drop point.':'Confirming an open hand · At least 350 ms and 3 valid frames.';
         const announcement=index+'|'+system;
         if(lastAnnouncement!==announcement) {
@@ -1795,7 +1816,7 @@ html>body{padding:24px 16px;margin:0;font-family:system-ui,-apple-system,"Segoe 
         const prompted=index>=5 && !(index===5 && u<.08) && !released;
         const nearby=index>=4 && index<=6;
         const pinched=held;
-        [[nodes['gate-cue'],prompted,'Cue sent'],[nodes['gate-near'],nearby||held,'Near the ball'],[nodes['gate-pinch'],pinched,'Open → pinch']].forEach(([node,met,label])=>{
+        [[nodes['gate-cue'],prompted,'Cue sent'],[nodes['gate-near'],nearby||held,'Near the ball'],[nodes['gate-pinch'],pinched,'Open → grasp']].forEach(([node,met,label])=>{
           attrs(node,{'data-met':met});
           statusText(node,(met?'✓ ':'○ ')+label);
         });
