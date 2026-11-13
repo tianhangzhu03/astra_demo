@@ -1,0 +1,347 @@
+<div id="abc-spatial-scene">
+  <div class="viz-row abc-heading">
+    <h2>A → B → C · 3D scene</h2>
+    <span class="text-small text-muted">Concept geometry · not to scale</span>
+  </div>
+  <div class="viz-controls" aria-label="Camera view">
+    <button class="btn" type="button" data-view="overview" aria-pressed="true">Front oblique</button>
+    <button class="btn" type="button" data-view="front" aria-pressed="false">Front view</button>
+    <button class="btn" type="button" data-view="detail" aria-pressed="false">Box detail</button>
+    <span class="text-small text-muted">Drag to orbit · scroll to zoom</span>
+  </div>
+  <div class="abc-viewport">
+    <canvas aria-label="Three-dimensional obstacle course. The hand travels from A to B, picks up the ball, follows the corridors to C, flips, lifts the ball into a downward-opening box, releases, lowers, and flips back." role="img"></canvas>
+    <div class="abc-labels" aria-hidden="true"></div>
+    <div class="abc-loading text-muted" role="status">Building 3D scene…</div>
+  </div>
+  <div class="viz-controls abc-playback">
+    <button class="btn btn-primary" type="button" data-action="play">Play sequence</button>
+    <label class="form-label">Action
+      <select class="form-select" aria-label="Task action">
+        <option value="0">01 · A → B / Shear</option>
+        <option value="1">02 · Pick / Vibration</option>
+        <option value="2">03 · B → C / Shear</option>
+        <option value="3">04 · Flip / Torsion</option>
+        <option value="4">05 · Lift +Z / Normal</option>
+        <option value="5">06 · Release / Vibration</option>
+        <option value="6">07 · Lower −Z / Normal</option>
+        <option value="7">08 · Flip back / Torsion</option>
+      </select>
+    </label>
+  </div>
+  <label class="form-label abc-timeline">
+    <span class="viz-row"><span class="abc-stage" aria-live="polite">A → B · Shear W / D</span><span class="abc-percent text-small tabular-nums">0%</span></span>
+    <input class="form-range" type="range" min="0" max="1000" value="0" step="1" aria-label="Sequence progress">
+  </label>
+  <div class="abc-caption text-small text-muted">Box: square footprint, open below · planned feedback log: 1 Hz · conceptual capture on release</div>
+</div>
+<style>
+#abc-spatial-scene { display:grid; gap:calc(var(--font-size-base) * .75); }
+#abc-spatial-scene .abc-heading { justify-content:space-between; padding-right:90px; }
+#abc-spatial-scene .abc-viewport { position:relative; width:100%; height:clamp(360px,66vw,550px); overflow:hidden; touch-action:none; }
+#abc-spatial-scene canvas { display:block; width:100%; height:100%; cursor:grab; }
+#abc-spatial-scene canvas:active { cursor:grabbing; }
+#abc-spatial-scene .abc-labels { position:absolute; inset:0; pointer-events:none; }
+#abc-spatial-scene .abc-label { position:absolute; color:var(--foreground); white-space:nowrap; font-weight:500; transform:translate(-50%,-50%); text-shadow:0 1px 3px var(--background),0 -1px 3px var(--background),1px 0 3px var(--background),-1px 0 3px var(--background); }
+#abc-spatial-scene .abc-label.secondary { color:var(--muted-foreground); font-weight:400; }
+#abc-spatial-scene .abc-loading { position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; }
+#abc-spatial-scene .abc-loading[hidden] { display:none; }
+#abc-spatial-scene .abc-timeline { display:grid; gap:calc(var(--font-size-base) * .25); }
+#abc-spatial-scene .abc-timeline .viz-row { justify-content:space-between; }
+#abc-spatial-scene .abc-playback { align-items:end; }
+@media(max-width:480px) {
+ #abc-spatial-scene .abc-heading { padding-right:0; }
+ #abc-spatial-scene .abc-viewport { height:290px; }
+ #abc-spatial-scene .abc-caption { max-width:32em; }
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js"></script>
+<script>
+(() => {
+  'use strict';
+  const root = document.getElementById('abc-spatial-scene');
+  const viewport = root.querySelector('.abc-viewport');
+  const canvas = root.querySelector('canvas');
+  const loading = root.querySelector('.abc-loading');
+  const slider = root.querySelector('input[type=range]');
+  const select = root.querySelector('select');
+  const play = root.querySelector('[data-action=play]');
+  const stageText = root.querySelector('.abc-stage');
+  const percent = root.querySelector('.abc-percent');
+  if (!window.THREE) { loading.textContent = '3D library could not load. Please reopen this view.'; loading.setAttribute('role','alert'); return; }
+  const T = window.THREE;
+  const V = (x=0,y=0,z=0) => new T.Vector3(x,y,z);
+  const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
+  const mix = (a,b,t) => a+(b-a)*t;
+  const ease = t => t*t*(3-2*t);
+  function cssColor(name) {
+    const probe = document.createElement('span');
+    probe.style.color = `var(${name}, var(--foreground))`;
+    probe.hidden = true; root.appendChild(probe);
+    const value = getComputedStyle(probe).color;
+    probe.remove(); return new T.Color(value);
+  }
+  const colorBindings=[];
+  function themeColor(key) {
+    const bg=cssColor('--background'),fg=cssColor('--foreground');
+    if(key==='board') return bg.clone().lerp(fg,.075);
+    if(key==='edge') return bg.clone().lerp(fg,.4);
+    if(key==='grid') return bg.clone().lerp(fg,.17);
+    if(key==='obstacle') return cssColor('--blue').lerp(bg,.18);
+    if(key==='route') return cssColor('--orange');
+    if(key==='approach') return cssColor('--green');
+    if(key==='ball') return cssColor('--yellow');
+    if(key==='hand') return bg.clone().lerp(cssColor('--orange'),.25);
+    if(key==='palm') return bg.clone().lerp(cssColor('--orange'),.48);
+    if(key==='box') return cssColor('--blue').lerp(bg,.12);
+    if(key==='normal') return cssColor('--purple');
+    if(key==='ink') return fg;
+    return bg;
+  }
+  function material(key, extra={}) {
+    const m = new T.MeshStandardMaterial({color:themeColor(key),roughness:.56,metalness:.08,...extra});
+    colorBindings.push([m,key]);return m;
+  }
+  let renderer;
+  try { renderer = new T.WebGLRenderer({canvas,alpha:true,antialias:true,preserveDrawingBuffer:true}); }
+  catch(e) { loading.textContent='This view needs WebGL to display the 3D model.';loading.setAttribute('role','alert');return; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1,2));
+  renderer.setClearColor(0,0);
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=T.PCFSoftShadowMap;
+  renderer.outputColorSpace=T.SRGBColorSpace;
+  renderer.toneMapping=T.ACESFilmicToneMapping;
+  renderer.toneMappingExposure=1.25;
+  const scene=new T.Scene();
+  const model=new T.Group();model.name='ABC_obstacle_task';scene.add(model);
+  const camera=new T.PerspectiveCamera(38,1,.05,160);camera.up.set(0,0,1);
+  scene.add(new T.HemisphereLight(0xffffff,0x64748b,2.0));
+  const key=new T.DirectionalLight(0xffffff,3.0);key.position.set(-7,-8,15);key.castShadow=true;
+  key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-11,right:11,top:10,bottom:-10,near:.5,far:45});
+  key.shadow.normalBias=.025;key.shadow.bias=-.0001;scene.add(key);
+  const fill=new T.DirectionalLight(0xffffff,1.2);fill.position.set(8,5,8);scene.add(fill);
+  const mats={board:material('board'),obstacle:material('obstacle'),edge:material('edge'),route:material('route'),approach:material('approach'),ball:material('ball',{roughness:.25,metalness:.15}),hand:material('hand'),palm:material('palm'),box:material('box'),glass:material('box',{transparent:true,opacity:.14,depthWrite:false,side:T.DoubleSide}),normal:material('normal'),ink:material('ink')};
+  function mesh(geo,mat,name,parent=model) {const m=new T.Mesh(geo,mat);m.name=name;m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
+  function block(name,x,y,z,w,d,h,mat,parent=model) {const m=mesh(new T.BoxGeometry(w,d,h),mat,name,parent);m.position.set(x,y,z);return m;}
+  function segment(name,a,b,r,mat,parent=model) {
+    const delta=b.clone().sub(a),m=mesh(new T.CylinderGeometry(r,r,1,12),mat,name,parent);
+    m.position.copy(a).add(b).multiplyScalar(.5);m.scale.y=delta.length();m.quaternion.setFromUnitVectors(V(0,1,0),delta.normalize());return m;
+  }
+  function arrow(a,b,mat,r=.035,parent=model) {
+    const delta=b.clone().sub(a),length=delta.length(),unit=delta.clone().normalize(),head=Math.min(.26,length*.23);
+    segment('Arrow_shaft',a,b.clone().addScaledVector(unit,-head),r,mat,parent);
+    const tip=mesh(new T.ConeGeometry(r*3.5,head,16),mat,'Arrow_head',parent);
+    tip.position.copy(b).addScaledVector(unit,-head/2);tip.quaternion.setFromUnitVectors(V(0,1,0),unit);
+  }
+  const labels=[];
+  function label(text,pos,{detail=false,overview=true,secondary=false,offset=[0,0],priority=1}={}) {
+    const el=document.createElement('span');el.className='abc-label'+(secondary?' secondary text-small':'');el.textContent=text;
+    root.querySelector('.abc-labels').appendChild(el);labels.push({el,text,pos:V(...pos),detail,overview,offset,priority});return el;
+  }
+  block('Workspace',0,0,-.17,14.4,8.8,.32,mats.board);
+  const gridPositions=[];
+  for(let x=-7;x<=7;x+=1){gridPositions.push(x,-4.25,.006,x,4.25,.006);}
+  for(let y=-4;y<=4;y+=1){gridPositions.push(-7.05,y,.006,7.05,y,.006);}
+  const gridGeo=new T.BufferGeometry();gridGeo.setAttribute('position',new T.Float32BufferAttribute(gridPositions,3));
+  const gridMat=new T.LineBasicMaterial({color:themeColor('grid')});colorBindings.push([gridMat,'grid']);
+  const grid=new T.LineSegments(gridGeo,gridMat);grid.name='Workspace_grid';model.add(grid);
+  for(const [a,b] of [[[ -7.1,-4.3,.025],[7.1,-4.3,.025]],[[7.1,-4.3,.025],[7.1,4.3,.025]],[[7.1,4.3,.025],[-7.1,4.3,.025]],[[-7.1,4.3,.025],[-7.1,-4.3,.025]]]) segment('Boundary',V(...a),V(...b),.018,mats.edge);
+  const obstacles=[{name:'Obstacle_01',x:-1.9,y:-1.6,w:5.4,d:5.2,h:1.3},{name:'Obstacle_02',x:4.275,y:-.25,w:2.95,d:4.8,h:1.65},{name:'Obstacle_03',x:3.55,y:3.14,w:1.5,d:1.98,h:1.65}];
+  obstacles.forEach(o=>{block(o.name,o.x,o.y,o.h/2,o.w,o.d,o.h,mats.obstacle);const geo=new T.EdgesGeometry(new T.BoxGeometry(o.w,o.d,o.h));const line=new T.LineSegments(geo,new T.LineBasicMaterial({color:themeColor('box')}));line.position.set(o.x,o.y,o.h/2);model.add(line);colorBindings.push([line.material,'box']);});
+  label('OBSTACLE 1',[-1.9,-1.6,1.4],{secondary:true,priority:2});
+  label('OBSTACLE 2',[4.25,-.25,1.75],{secondary:true,priority:2});
+  label('CENTER AVOIDED',[-1.9,-2.0,1.4],{secondary:true,offset:[0,18],priority:3});
+  const A=V(-5.85,-3.15,.80),B=V(1.75,2.75,.80),C=V(5.35,3.12,.80);
+  const reach=[A,V(-5.85,2.75,.80),B];
+  const carry=[B,V(1.75,-3.45,.80),V(6.6,-3.45,.80),V(6.6,3.12,.80),C];
+  function route(points,mat,keys) {
+    for(let i=0;i<points.length-1;i++){
+      const a=points[i].clone().setZ(.055),b=points[i+1].clone().setZ(.055);
+      segment('Route',a,b,.028,mat);
+      const d=b.clone().sub(a),n=Math.max(1,Math.floor(d.length()/1.6));
+      for(let j=0;j<n;j++){
+        const mid=a.clone().addScaledVector(d,(j+.65)/n);
+        arrow(mid.clone().addScaledVector(d.clone().normalize(),-.22),mid,mat,.037);
+      }
+      const p=a.clone().lerp(b,.5).setZ(.15);
+      label(keys[i],[p.x,p.y,p.z],{secondary:true,offset:[-12,-9],priority:3});
+    }
+  }
+  route(reach,mats.approach,['W','D']);route(carry,mats.route,['S','D','W','A']);
+  function station(p,mat) {
+    const ring=mesh(new T.TorusGeometry(.42,.028,10,64),mat,'Station_ring');ring.position.set(p.x,p.y,.04);
+  }
+  station(A,mats.approach);station(B,mats.route);station(C,mats.box);
+  label('A · START',[A.x,A.y,.12],{offset:[0,25],priority:0});
+  label('B · PICK',[B.x,B.y,1.5],{priority:0});
+  segment('B_label_leader',B.clone().setZ(.12),B.clone().setZ(1.22),.012,mats.edge);
+  const target=new T.Group();target.name='Inverted_box_open_bottom';model.add(target);
+  const bx=C.x,by=C.y,bw=1.98,bd=bw,bottom=2.05,roof=3.12,thick=.10;
+  block('Box_roof',bx,by,roof,bw,bd,thick,mats.box,target);
+  block('Box_left_wall',bx-bw/2+.035,by,(bottom+roof)/2,.07,bd,roof-bottom,mats.glass,target);
+  block('Box_right_wall',bx+bw/2-.035,by,(bottom+roof)/2,.07,bd,roof-bottom,mats.glass,target);
+  block('Box_front_wall',bx,by-bd/2+.035,(bottom+roof)/2,bw,.07,roof-bottom,mats.glass,target);
+  block('Box_back_wall',bx,by+bd/2-.035,(bottom+roof)/2,bw,.07,roof-bottom,mats.glass,target);
+  for(const x of [bx-bw/2,bx+bw/2]) for(const y of [by-bd/2,by+bd/2]) segment('Box_corner',V(x,y,bottom),V(x,y,roof),.034,mats.box,target);
+  for(const z of [bottom,roof]) for(const [a,b] of [ [[bx-bw/2,by-bd/2,z],[bx+bw/2,by-bd/2,z]],[[bx+bw/2,by-bd/2,z],[bx+bw/2,by+bd/2,z]],[[bx+bw/2,by+bd/2,z],[bx-bw/2,by+bd/2,z]],[[bx-bw/2,by+bd/2,z],[bx-bw/2,by-bd/2,z]] ]) segment('Box_rim',V(...a),V(...b),.027,mats.box,target);
+  label('C · INVERTED BOX',[bx,by,3.52],{detail:true,priority:0});
+  label('OPEN BELOW',[bx,by-.91,2.03],{detail:true,overview:false,offset:[0,18],priority:0});
+  const zGuide=new T.Group();zGuide.name='Vertical_action';model.add(zGuide);
+  arrow(V(bx+1.02,by,.9),V(bx+1.02,by,2.65),mats.normal,.027,zGuide);
+  label('+Z',[bx+1.07,by,2.88],{detail:true,priority:2});
+  const downGuide=new T.Group();downGuide.name='Withdraw_action';model.add(downGuide);
+  arrow(V(bx-1.0,by-.12,1.92),V(bx-1.0,by-.12,.9),mats.normal,.024,downGuide);
+  label('−Z',[bx-1.02,by-.12,.7],{detail:true,overview:false,priority:2});
+  const axisOrigin=V(-6.8,-4.05,.05);
+  arrow(axisOrigin,axisOrigin.clone().add(V(1.05,0,0)),mats.edge,.018);
+  arrow(axisOrigin,axisOrigin.clone().add(V(0,1.05,0)),mats.edge,.018);
+  arrow(axisOrigin,axisOrigin.clone().add(V(0,0,1.05)),mats.edge,.018);
+  label('X',[-5.55,-4.05,.05],{secondary:true,priority:3});label('Y',[-6.8,-2.85,.05],{secondary:true,priority:3});label('Z',[-6.8,-4.05,1.25],{secondary:true,priority:3});
+  const hand=new T.Group();hand.name='Hand_pose';model.add(hand);
+  const palm=mesh(new T.SphereGeometry(1,32,20),mats.hand,'Palm',hand);palm.scale.set(.37,.35,.115);
+  const palmMark=mesh(new T.SphereGeometry(1,24,16),mats.palm,'Palm_side_marker',hand);palmMark.position.set(0,.02,-.096);palmMark.scale.set(.23,.23,.03);
+  const wrist=mesh(new T.CapsuleGeometry(.19,.40,8,16),mats.hand,'Wrist',hand);wrist.position.set(0,-.53,0);wrist.scale.z=.6;
+  const band=mesh(new T.CylinderGeometry(.21,.21,.14,24),mats.box,'Wearable_band',hand);band.position.set(0,-.48,0);band.scale.z=.67;
+  const back=mesh(new T.CylinderGeometry(.13,.13,.035,24),mats.ink,'Back_of_hand_marker',hand);back.rotation.x=Math.PI/2;back.position.set(0,0,.116);
+  const boneGeo=new T.CylinderGeometry(.063,.072,1,12),jointGeo=new T.SphereGeometry(.067,12,10);
+  const fingers=[];
+  for(let i=0;i<5;i++){
+    const f={bones:[],joints:[]};
+    for(let j=0;j<3;j++){f.bones.push(mesh(boneGeo,mats.hand,'Finger_'+i+'_bone_'+j,hand));f.joints.push(mesh(jointGeo,mats.hand,'Finger_'+i+'_joint_'+j,hand));}fingers.push(f);
+  }
+  function setGrip(amount) {
+    for(let i=0;i<5;i++){
+      let open,closed;
+      if(i<4){const x=(i-1.5)*.17,len=[.89,1.0,.94,.77][i];open=[[x,.21,0],[x,.46,0],[x,.66*len,-.02],[x,.87*len,-.03]];closed=[[x,.21,0],[x,.47,-.17],[x,.36,-.39],[x,.12,-.46]];}
+      else {open=[[.3,-.12,-.015],[.51,.01,-.04],[.61,.19,-.08],[.63,.35,-.10]];closed=[[.3,-.12,-.015],[.48,.03,-.15],[.35,.21,-.34],[.16,.22,-.43]];}
+      const pts=open.map((p,j)=>V(...p).lerp(V(...closed[j]),amount));
+      for(let j=0;j<3;j++){const bone=fingers[i].bones[j],delta=pts[j+1].clone().sub(pts[j]);bone.position.copy(pts[j]).add(pts[j+1]).multiplyScalar(.5);bone.scale.y=delta.length();bone.quaternion.setFromUnitVectors(V(0,1,0),delta.normalize());fingers[i].joints[j].position.copy(pts[j+1]);}
+    }
+  }
+  const ball=mesh(new T.SphereGeometry(.29,48,32),mats.ball,'Virtual_ball');
+  const ballOffset=V(0,.07,-.41),ballRest=B.clone().add(ballOffset);
+  const flipGuide=new T.Group();flipGuide.name='Flip_arrow';model.add(flipGuide);
+  function makeFlipArc() {
+    const pts=[];for(let i=0;i<=48;i++){const a=-.6+i/48*4.8;pts.push(V(Math.cos(a)*.71,0,Math.sin(a)*.71));}
+    const curve=new T.CatmullRomCurve3(pts);mesh(new T.TubeGeometry(curve,64,.022,8,false),mats.normal,'Torsion_arc',flipGuide);
+    const a=pts[pts.length-2],b=pts[pts.length-1];arrow(a,b,mats.normal,.05,flipGuide);
+  }
+  makeFlipArc();flipGuide.visible=false;
+  // 1 Hz is the planned feedback-record cadence, not a timed cue trigger.
+  // This concept animation does not operate BLE or implement experiment logging.
+  const stageRanges=[[0,12],[12,14],[14,35],[35,38],[38,41],[41,43],[43,46],[46,49]];
+  const stages=['A → B · Shear W / D','B · Pick / Vibration','B → C · Shear S / D / W / A','C · Flip / CW torsion','C · Lift +Z / Normal','C · Release / Vibration','C · Lower −Z / Normal','C · Flip back / CCW torsion'];
+  const total=49;let time=0,playing=false,currentStage=-1,view='overview';
+  const orbit={az:.55,elevation:.60,radius:23.5,target:V(0,.2,.25)};
+  let pendingCamera=null,frameRequested=false,lastStamp=0;
+  const stateOrigin='abc-'+Math.random().toString(36).slice(2);let stateRevision=0;
+  function saveState() {const api=window.openai,c=pendingCamera?.to||orbit;if(api?.setWidgetState)api.setWidgetState({modelContent:{view,action:stages[Math.max(0,currentStage)]},privateContent:{time,view,az:c.az,elevation:c.elevation,radius:c.radius,target:c.target.toArray(),origin:stateOrigin,revision:++stateRevision}}).catch(()=>{});}
+  function stageAt(t) {for(let i=0;i<stageRanges.length;i++)if(t<stageRanges[i][1])return i;return 7;}
+  function interpolatePath(points,weights,p) {
+    const sum=weights.reduce((a,b)=>a+b,0),distance=clamp(p,0,1)*sum;let seen=0;
+    for(let i=0;i<weights.length;i++){if(distance<=seen+weights[i]||i===weights.length-1)return points[i].clone().lerp(points[i+1],ease(clamp((distance-seen)/weights[i],0,1)));seen+=weights[i];}
+  }
+  function setPose(t,announce=true) {
+    time=clamp(t,0,total);const s=stageAt(time);let p=A.clone(),angle=0,grip=0;
+    if(time<12)p=interpolatePath(reach,[6,6],time/12);
+    else if(time<14){p=B.clone();grip=ease((time-12)/2);}
+    else if(time<35){p=interpolatePath(carry,[7,5,7,2],(time-14)/21);grip=1;}
+    else if(time<38){p=C.clone();grip=1;angle=ease((time-35)/3)*Math.PI;}
+    else if(time<41){p=C.clone();p.z=mix(.8,2.05,ease((time-38)/3));grip=1;angle=Math.PI;}
+    else if(time<43){p=C.clone().setZ(2.05);grip=1-ease((time-41)/2);angle=Math.PI;}
+    else if(time<46){p=C.clone().setZ(mix(2.05,.8,ease((time-43)/3)));angle=Math.PI;}
+    else {p=C.clone();angle=(1-ease((time-46)/3))*Math.PI;}
+    hand.position.copy(p);hand.rotation.set(0,angle,0);setGrip(grip);
+    if(time<14)ball.position.copy(ballRest);
+    else if(time<41.8)ball.position.copy(ballOffset).applyQuaternion(hand.quaternion).add(p);
+    else ball.position.set(C.x,C.y+.07,2.46);
+    // The same ball material is used before, during, and after grasp.
+    flipGuide.position.copy(C).add(V(0,-.18,.04));flipGuide.visible=s===3||s===7;
+    flipGuide.rotation.y=s===7?Math.PI:0;
+    zGuide.visible=true;downGuide.visible=s===6;
+    slider.value=String(Math.round(time/total*1000));percent.textContent=Math.round(time/total*100)+'%';
+    if(s!==currentStage){currentStage=s;select.value=String(s);if(announce)stageText.textContent=stages[s];}
+    root.dataset.stage=String(s);root.dataset.time=time.toFixed(3);
+    requestRender();
+  }
+  function cameraPosition() {
+    const r=orbit.radius,ce=Math.cos(orbit.elevation);camera.position.copy(orbit.target).add(V(Math.sin(orbit.az)*ce*r,-Math.cos(orbit.az)*ce*r,Math.sin(orbit.elevation)*r));camera.lookAt(orbit.target);camera.updateMatrixWorld();
+    const dx=Math.cos(orbit.az)*1.55,dy=Math.sin(orbit.az)*1.55;
+    zGuide.position.set(dx-1.02,dy,0);downGuide.position.set(-dx+1,-dy+.12,0);
+    for(const l of labels){if(l.text==='+Z')l.pos.set(C.x+dx,C.y+dy,2.88);if(l.text==='−Z')l.pos.set(C.x-dx,C.y-dy,.7);}
+  }
+  function fitCourse(p) {
+    const fitCamera=camera.clone();fitCamera.aspect=viewport.clientWidth/viewport.clientHeight;fitCamera.updateProjectionMatrix();
+    const points=[];
+    for(const x of [-7.25,7.25])for(const y of [-4.45,4.45])for(const z of [-.35,.05])points.push(V(x,y,z));
+    for(const x of [bx-bw/2,bx+bw/2])for(const y of [by-bd/2,by+bd/2])points.push(V(x,y,3.65));
+    for(const l of labels)if(l.priority===0&&l.overview)points.push(l.pos.clone());
+    for(let i=0;i<4;i++){
+      const ce=Math.cos(p.elevation);fitCamera.position.copy(p.target).add(V(Math.sin(p.az)*ce*p.radius,-Math.cos(p.az)*ce*p.radius,Math.sin(p.elevation)*p.radius));fitCamera.lookAt(p.target);fitCamera.updateMatrixWorld();
+      let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+      for(const pt of points){const q=pt.clone().project(fitCamera);minX=Math.min(minX,q.x);maxX=Math.max(maxX,q.x);minY=Math.min(minY,q.y);maxY=Math.max(maxY,q.y);}
+      const halfH=Math.tan(T.MathUtils.degToRad(fitCamera.fov/2))*p.radius;
+      const right=V().setFromMatrixColumn(fitCamera.matrixWorld,0),up=V().setFromMatrixColumn(fitCamera.matrixWorld,1);
+      p.target.addScaledVector(right,(minX+maxX)/2*halfH*fitCamera.aspect).addScaledVector(up,(minY+maxY)/2*halfH);
+      p.radius*=Math.max((maxX-minX)/1.8,(maxY-minY)/1.72);
+    }
+  }
+  function preset(name,animate=true) {
+    view=name;root.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===name)));
+    const aspect=viewport.clientWidth/viewport.clientHeight;
+    const overviewRadius=Math.max(17.6,17.6*1.45/aspect);
+    const p=name==='detail'?{az:1.18,elevation:.20,radius:Math.max(6.5,6.5/aspect),target:V(C.x,C.y,1.68)}:name==='front'?{az:0,elevation:.28,radius:Math.max(21,21*1.45/aspect),target:V(0,0,.55)}:{az:.55,elevation:.60,radius:overviewRadius,target:V(0,.2,.65)};
+    if(name!=='detail')fitCourse(p);
+    if(animate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)pendingCamera={from:{...orbit,target:orbit.target.clone()},to:p,start:performance.now()};
+    else {Object.assign(orbit,p);pendingCamera=null;}
+    if(name==='detail'&&time<35){playing=false;play.textContent='Play sequence';setPose(35);}
+    setPose(time);requestRender();
+  }
+  const temp=V();
+  function renderLabels() {
+    const w=viewport.clientWidth,h=viewport.clientHeight,small=w<480,used=[];
+    for(const l of [...labels].sort((a,b)=>a.priority-b.priority)){
+      const allowed=view==='detail'?l.detail:l.overview;
+      if(!allowed||(small&&l.priority>1)){l.el.hidden=true;continue;}
+      temp.copy(l.pos).project(camera);const x=(temp.x*.5+.5)*w+l.offset[0],y=(-temp.y*.5+.5)*h+l.offset[1];
+      l.el.textContent=small&&view!=='detail'&&l.text==='C · INVERTED BOX'?'C · BOX':l.text;
+      if(l.text==='−Z'&&currentStage!==6){l.el.hidden=true;continue;}
+      l.el.hidden=false;const lw=l.el.offsetWidth,lh=l.el.offsetHeight;
+      const rect={left:x-lw/2,right:x+lw/2,top:y-lh/2,bottom:y+lh/2};
+      if(temp.z>1||rect.left<3||rect.right>w-3||rect.top<3||rect.bottom>h-3||used.some(r=>rect.left<r.right+5&&rect.right>r.left-5&&rect.top<r.bottom+3&&rect.bottom>r.top-3)){l.el.hidden=true;continue;}
+      l.el.style.left=x+'px';l.el.style.top=y+'px';used.push(rect);
+    }
+  }
+  function frame(stamp) {
+    frameRequested=false;
+    if(!root.isConnected)return;
+    const dt=lastStamp?Math.min(.08,(stamp-lastStamp)/1000):0;lastStamp=stamp;
+    if(playing){const before=currentStage;setPose(time+dt);if(before<3&&currentStage>=3&&view!=='detail')preset('detail');if(time>=total){playing=false;play.textContent='Replay sequence';saveState();}}
+    if(pendingCamera){const q=ease(clamp((stamp-pendingCamera.start)/550,0,1)),a=pendingCamera.from,b=pendingCamera.to;orbit.az=mix(a.az,b.az,q);orbit.elevation=mix(a.elevation,b.elevation,q);orbit.radius=mix(a.radius,b.radius,q);orbit.target=a.target.clone().lerp(b.target,q);if(q>=1)pendingCamera=null;}
+    cameraPosition();renderer.render(scene,camera);renderLabels();
+    if(playing||pendingCamera)requestRender();
+  }
+  function requestRender(){if(!frameRequested){frameRequested=true;requestAnimationFrame(frame);}}
+  function resize(){const w=viewport.clientWidth,h=viewport.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();requestRender();}
+  new ResizeObserver(resize).observe(viewport);
+  let drag=null;
+  canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};pendingCamera=null;canvas.setPointerCapture(e.pointerId);});
+  canvas.addEventListener('pointermove',e=>{if(!drag)return;orbit.az-=(e.clientX-drag.x)*.007;orbit.elevation=clamp(orbit.elevation+(e.clientY-drag.y)*.005,.09,1.42);drag={x:e.clientX,y:e.clientY};requestRender();});
+  canvas.addEventListener('pointerup',()=>{drag=null;saveState();});canvas.addEventListener('pointercancel',()=>{drag=null;});
+  canvas.addEventListener('wheel',e=>{e.preventDefault();pendingCamera=null;orbit.radius=clamp(orbit.radius*Math.exp(e.deltaY*.001),3.4,50);requestRender();},{passive:false});
+  root.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{preset(b.dataset.view);saveState();}));
+  select.addEventListener('change',()=>{playing=false;play.textContent='Play sequence';const s=Number(select.value);setPose(stageRanges[s][0]+(s===1?.9:s===5?1.3:0));if(s>=3&&view!=='detail')preset('detail');else if(s<3&&view==='detail')preset('overview');saveState();});
+  slider.addEventListener('input',()=>{playing=false;play.textContent='Play sequence';setPose(Number(slider.value)/1000*total);});slider.addEventListener('change',saveState);
+  play.addEventListener('click',()=>{if(time>=total){setPose(0);preset('overview');}if(time<35&&view==='detail')preset('overview');playing=!playing;play.textContent=playing?'Pause':'Play sequence';lastStamp=performance.now();requestRender();saveState();});
+  function applyState(state) {const p=state?.privateContent;if(!p||!Number.isFinite(p.time)||p.origin===stateOrigin)return;preset(['overview','front','detail'].includes(p.view)?p.view:'overview',false);if(Number.isFinite(p.az))orbit.az=p.az;if(Number.isFinite(p.elevation))orbit.elevation=clamp(p.elevation,.09,1.42);if(Number.isFinite(p.radius))orbit.radius=clamp(p.radius,3.4,50);if(Array.isArray(p.target)&&p.target.length===3&&p.target.every(Number.isFinite))orbit.target.fromArray(p.target);setPose(p.time);}
+  window.addEventListener('openai:set_globals',e=>{if(e.detail?.globals?.widgetState)applyState(e.detail.globals.widgetState);});
+  function updateTheme(){for(const [m,k]of colorBindings)m.color.copy(themeColor(k));requestRender();}
+  new MutationObserver(updateTheme).observe(document.documentElement,{attributes:true,attributeFilter:['class','data-theme','style']});
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change',updateTheme);
+  preset('overview',false);setPose(0);applyState(window.openai?.widgetState);resize();loading.hidden=true;
+  root.dataset.ready='true';
+  // Read-only inspection and deterministic rendering hooks for the saved model.
+  window.abcScene={scene,model,camera,renderer,hand,ball,setTime:t=>{playing=false;setPose(t);},setView:v=>preset(v,false),render:()=>{cameraPosition();renderer.render(scene,camera);renderLabels();},snapshot:()=>({time,stage:currentStage,view,hand:hand.position.toArray(),ball:ball.position.toArray(),handRotation:hand.rotation.toArray(),ballColor:ball.material.color.getHexString(),obstacles,box:{bottom,roof,width:bw,depth:bd},route:{reach:reach.map(p=>p.toArray()),carry:carry.map(p=>p.toArray())},meshes:countMeshes(model)})};
+  function countMeshes(group){let n=0;group.traverse(o=>{if(o.isMesh)n++;});return n;}
+})();
+</script>
