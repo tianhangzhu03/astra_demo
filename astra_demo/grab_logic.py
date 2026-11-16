@@ -1,129 +1,138 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
+import math
 from typing import Optional
 
 
 class GrabState(str, Enum):
-    IDLE = "IDLE"
-    ARMED = "ARMED"
-    GRAB = "GRAB"
+    IDLE = 'IDLE'
+    ARMED = 'ARMED'  # Operator prompt sent; waiting for a new nearby open-to-pinch gesture.
+    GRAB = 'GRAB'
 
 
 @dataclass
 class GrabContext:
     state: GrabState = GrabState.IDLE
-    top_pinch_state: bool = False
-
-    hover_key: int = 0
-    armed_key: int = 0
-    grab_key: int = 0
-
-    top_enter_count: int = 0
-    grab_enter_count: int = 0
+    open_count: int = 0
+    open_observed: bool = False
+    close_count: int = 0
+    last_gesture_ms: Optional[int] = None
     exit_count: int = 0
-    pinch_missing_count: int = 0
+    release_started_ms: Optional[int] = None
 
 
 @dataclass
 class GrabOutput:
     context: GrabContext
     trigger_on: bool
-    target_key: int
+    target_key: int = 0  # Compatibility with existing session CSV; quadrants are reference only.
+    status: str = 'WAIT CUE [G]'
 
 
-def _update_pinch_state(prev: bool, pinch_dist: Optional[float], enter: float, exit_: float) -> bool:
-    if pinch_dist is None:
+def update_manual_grab(ctx, request, *, tracking_valid):
+    """ABC operator confirmation; tracking loss never releases an already held ball."""
+    if request == 'release':
+        return GrabOutput(GrabContext(), False, status='RELEASED / G to grab')
+    held = ctx.state == GrabState.GRAB
+    if request == 'grab' and not held:
+        if not tracking_valid:
+            return GrabOutput(ctx, False, status='No valid position / press G again')
+        return GrabOutput(GrabContext(state=GrabState.GRAB), True, status='HELD / G to drop')
+    return GrabOutput(ctx, held, status='HELD / G to drop' if held else 'G to grab')
+
+
+def near_ball(hand_xy, ball_xy, radius, margin=20.0):
+    if hand_xy is None:
         return False
-    if prev:
-        return pinch_dist < exit_
-    return pinch_dist < enter
+    values = (*hand_xy, *ball_xy, radius, margin)
+    return (all(math.isfinite(v) for v in values) and radius > 0 and margin >= 0
+            and math.dist(hand_xy, ball_xy) <= radius + margin)
 
 
 def update_grab_state(
     ctx: GrabContext,
     pinch_dist: Optional[float],
-    hover_key: int,
-    pinch_enter: float,
-    pinch_exit: float,
-    enter_frames: int,
-    exit_frames: int,
-    pinch_missing_hold_frames: int = 0,
-    top_hand_present: Optional[bool] = None,
+    *,
+    prompt_sent: bool = False,
+    cancel_prompt: bool = False,
+    hand_near_ball: bool = False,
+    top_hand_present: bool = False,
+    pinch_enter: float = .42,
+    pinch_ready: float = .60,
+    pinch_exit: float = .85,
+    enter_frames: int = 2,
+    exit_frames: int = 3,
+    now_ms: int = 0,
+    release_hold_ms: int = 350,
+    gesture_gap_ms: int = 500,
+    top_anchor_valid: bool = True,
+    setup_ready: bool = True,
+    manual_release: bool = False,
 ) -> GrabOutput:
-    next_ctx = GrabContext(**ctx.__dict__)
-    next_ctx.hover_key = hover_key
-    top_present = (hover_key > 0) if top_hand_present is None else bool(top_hand_present)
+    """Prompt + nearby opening/closure; bridge brief side-tip loss, never attach on it."""
+    next_ctx = replace(ctx)
+    valid_pinch = pinch_dist is not None and math.isfinite(pinch_dist)
+    if manual_release:
+        return GrabOutput(GrabContext(), False)
 
-    if pinch_dist is None:
-        hold_missing = (
-            ctx.top_pinch_state
-            and ctx.state in (GrabState.ARMED, GrabState.GRAB)
-            and ctx.pinch_missing_count < pinch_missing_hold_frames
-        )
-        next_ctx.top_pinch_state = hold_missing
-        next_ctx.pinch_missing_count = ctx.pinch_missing_count + 1 if hold_missing else 0
-    else:
-        next_ctx.top_pinch_state = _update_pinch_state(
-            prev=ctx.top_pinch_state,
-            pinch_dist=pinch_dist,
-            enter=pinch_enter,
-            exit_=pinch_exit,
-        )
-        next_ctx.pinch_missing_count = 0
-
-    if next_ctx.state == GrabState.IDLE:
-        if next_ctx.top_pinch_state and top_present:
-            next_ctx.top_enter_count += 1
-        else:
-            next_ctx.top_enter_count = 0
-
-        if next_ctx.top_enter_count >= enter_frames:
-            next_ctx.state = GrabState.ARMED
-            next_ctx.armed_key = hover_key if hover_key > 0 else 0
-            next_ctx.top_enter_count = 0
-            next_ctx.grab_enter_count = 0
-            next_ctx.exit_count = 0
-
-    elif next_ctx.state == GrabState.ARMED:
-        if not next_ctx.top_pinch_state or (not top_present):
-            next_ctx.state = GrabState.IDLE
-            next_ctx.armed_key = 0
-            next_ctx.grab_enter_count = 0
-            next_ctx.exit_count = 0
-            next_ctx.grab_key = 0
-        else:
-            if hover_key > 0:
-                next_ctx.armed_key = hover_key
-            next_ctx.grab_enter_count += 1
-
-            if next_ctx.grab_enter_count >= enter_frames:
-                next_ctx.state = GrabState.GRAB
-                next_ctx.grab_key = next_ctx.armed_key if next_ctx.armed_key > 0 else hover_key
-                next_ctx.grab_enter_count = 0
-                next_ctx.exit_count = 0
-
-    else:  # GRAB
-        should_release = not next_ctx.top_pinch_state
-        if should_release:
+    # Once attached, proximity and operator permission no longer gate retention.
+    if ctx.state == GrabState.GRAB:
+        if valid_pinch and pinch_dist >= pinch_exit:
+            if next_ctx.release_started_ms is None:
+                next_ctx.release_started_ms = now_ms
             next_ctx.exit_count += 1
+            if (next_ctx.exit_count >= exit_frames
+                    and now_ms - next_ctx.release_started_ms >= release_hold_ms):
+                return GrabOutput(GrabContext(), False)
         else:
             next_ctx.exit_count = 0
+            next_ctx.release_started_ms = None
+        return GrabOutput(next_ctx, True, status='HELD')
 
-        if next_ctx.exit_count >= exit_frames:
-            next_ctx.state = GrabState.IDLE
-            next_ctx.grab_key = 0
-            next_ctx.armed_key = 0
-            next_ctx.exit_count = 0
+    if cancel_prompt:
+        return GrabOutput(GrabContext(), False)
+    if prompt_sent:
+        next_ctx = GrabContext(state=GrabState.ARMED)
+    if next_ctx.state == GrabState.IDLE:
+        return GrabOutput(next_ctx, False)
 
-    if next_ctx.state != GrabState.GRAB:
-        next_ctx.grab_key = 0
+    if not setup_ready or not top_hand_present or not top_anchor_valid or not hand_near_ball:
+        # Cannot close remotely and carry that closed pose into the target area.
+        next_ctx.open_count = next_ctx.close_count = 0
+        next_ctx.open_observed = False
+        next_ctx.last_gesture_ms = None
+        status = ('PLACE SIDE BALL' if not setup_ready else
+                  'SHOW TOP HAND' if not top_hand_present else
+                  'SHOW TOP FINGERS' if not top_anchor_valid else 'MOVE TO BALL')
+        return GrabOutput(next_ctx, False, status=status)
 
-    trigger_on = next_ctx.state == GrabState.GRAB
-    target_key = next_ctx.grab_key if (trigger_on and next_ctx.grab_key > 0) else 0
-    return GrabOutput(
-        context=next_ctx,
-        trigger_on=trigger_on,
-        target_key=target_key,
-    )
+    # A folding hand can briefly hide its thumb/index tips in Side View. Keep
+    # a CONFIRMED nearby opening for a bounded gap, but clear partial counts:
+    # missing frames never count as closure and cannot complete an attachment.
+    if (next_ctx.last_gesture_ms is not None
+            and not 0 <= now_ms - next_ctx.last_gesture_ms <= gesture_gap_ms):
+        next_ctx.open_count = next_ctx.close_count = 0
+        next_ctx.open_observed = False
+    if not valid_pinch:
+        next_ctx.open_count = next_ctx.close_count = 0
+        return GrabOutput(next_ctx, False, status='SHOW SIDE FINGERS')
+    next_ctx.last_gesture_ms = now_ms
+
+    if pinch_dist >= pinch_ready:
+        next_ctx.open_count += 1
+        next_ctx.close_count = 0
+        if next_ctx.open_count >= enter_frames:
+            next_ctx.open_observed = True
+    else:
+        next_ctx.open_count = 0
+        if next_ctx.open_observed and pinch_dist <= pinch_enter:
+            next_ctx.close_count += 1
+            if next_ctx.close_count >= enter_frames:
+                return GrabOutput(GrabContext(state=GrabState.GRAB), True, status='HELD')
+        else:
+            next_ctx.close_count = 0
+
+    return GrabOutput(next_ctx, False,
+                      status='PINCH TO GRAB' if next_ctx.open_observed else 'OPEN FINGERS')

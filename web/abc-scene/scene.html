@@ -87,10 +87,10 @@
     if(key==='board') return bg.clone().lerp(fg,.075);
     if(key==='edge') return bg.clone().lerp(fg,.4);
     if(key==='grid') return bg.clone().lerp(fg,.17);
-    if(key==='obstacle') return cssColor('--blue').lerp(bg,.18);
+    if(key==='obstacle') return new T.Color('#69bdf2');
     if(key==='route') return cssColor('--orange');
     if(key==='approach') return cssColor('--green');
-    if(key==='ball') return cssColor('--green');
+    if(key==='ball') return new T.Color('#f5643c');
     if(key==='hand') return bg.clone().lerp(cssColor('--orange'),.25);
     if(key==='palm') return bg.clone().lerp(cssColor('--orange'),.48);
     if(key==='box') return cssColor('--blue').lerp(bg,.12);
@@ -174,8 +174,6 @@
     const ring=mesh(new T.TorusGeometry(.42,.028,10,64),mat,'Station_ring');ring.position.set(p.x,p.y,.04);
   }
   station(A,mats.approach);station(B,mats.route);station(C,mats.box);
-  label('A · START',[A.x,A.y,.12],{offset:[0,25],priority:0});
-  label('B · PICK',[B.x,B.y,1.5],{priority:0});
   segment('B_label_leader',B.clone().setZ(.12),B.clone().setZ(1.22),.012,mats.edge);
   const target=new T.Group();target.name='Inverted_box_open_bottom';model.add(target);
   const bx=C.x,by=C.y,bw=1.98*layoutScale,bd=bw,bottom=2.05,roof=3.12,thick=.10;
@@ -186,7 +184,7 @@
   block('Box_back_wall',bx,by+bd/2-.035,(bottom+roof)/2,bw,.07,roof-bottom,mats.glass,target);
   for(const x of [bx-bw/2,bx+bw/2]) for(const y of [by-bd/2,by+bd/2]) segment('Box_corner',V(x,y,bottom),V(x,y,roof),.034,mats.box,target);
   for(const z of [bottom,roof]) for(const [a,b] of [ [[bx-bw/2,by-bd/2,z],[bx+bw/2,by-bd/2,z]],[[bx+bw/2,by-bd/2,z],[bx+bw/2,by+bd/2,z]],[[bx+bw/2,by+bd/2,z],[bx-bw/2,by+bd/2,z]],[[bx-bw/2,by+bd/2,z],[bx-bw/2,by-bd/2,z]] ]) segment('Box_rim',V(...a),V(...b),.027,mats.box,target);
-  label('C · INVERTED BOX',[bx,by,3.52],{detail:true,priority:0});
+  label('INVERTED BOX',[bx,by,3.52],{detail:true,priority:0});
   label('OPEN BELOW',[bx,by-.91,2.03],{detail:true,overview:false,offset:[0,18],priority:0});
   const zGuide=new T.Group();zGuide.name='Vertical_action';model.add(zGuide);
   arrow(V(bx+1.02,by,.9),V(bx+1.02,by,2.65),mats.normal,.027,zGuide);
@@ -309,7 +307,7 @@
       const allowed=view==='detail'?l.detail:l.overview;
       if(!allowed||(small&&l.priority>1)){l.el.hidden=true;continue;}
       temp.copy(l.pos).project(camera);const x=(temp.x*.5+.5)*w+l.offset[0],y=(-temp.y*.5+.5)*h+l.offset[1];
-      l.el.textContent=small&&view!=='detail'&&l.text==='C · INVERTED BOX'?'C · BOX':l.text;
+      l.el.textContent=small&&view!=='detail'&&l.text==='INVERTED BOX'?'BOX':l.text;
       if(l.text==='−Z'&&currentStage!==6){l.el.hidden=true;continue;}
       l.el.hidden=false;const lw=l.el.offsetWidth,lh=l.el.offsetHeight;
       const rect={left:x-lw/2,right:x+lw/2,top:y-lh/2,bottom:y+lh/2};

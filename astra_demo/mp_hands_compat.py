@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.request import urlretrieve
+import time
 
 import cv2
 import mediapipe as mp
@@ -64,20 +65,25 @@ class _LegacyHandsFactory:
 @dataclass
 class _CompatResult:
     multi_hand_landmarks: list
+    multi_hand_world_landmarks: list
 
 
 class _TaskHands:
     def __init__(self, detector):
         self._detector = detector
+        self._last_timestamp_ms = -1
 
     def process(self, rgb_frame):
         image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-        result = self._detector.detect(image)
+        timestamp_ms = max(self._last_timestamp_ms + 1, time.monotonic_ns() // 1_000_000)
+        self._last_timestamp_ms = timestamp_ms
+        result = self._detector.detect_for_video(image, timestamp_ms)
         hands = []
         for hand in result.hand_landmarks:
             # Match legacy shape: each entry has `.landmark`.
             hands.append(SimpleNamespace(landmark=list(hand)))
-        return _CompatResult(multi_hand_landmarks=hands)
+        worlds = [SimpleNamespace(landmark=list(hand)) for hand in result.hand_world_landmarks]
+        return _CompatResult(multi_hand_landmarks=hands, multi_hand_world_landmarks=worlds)
 
     def close(self):
         self._detector.close()
@@ -98,7 +104,7 @@ class _TaskHandsFactory:
         _ = kwargs  # Tasks API does not use legacy-only kwargs (e.g. model_complexity).
         options = self._vision.HandLandmarkerOptions(
             base_options=self._BaseOptions(model_asset_path=self._model_path),
-            running_mode=self._vision.RunningMode.IMAGE,
+            running_mode=self._vision.RunningMode.VIDEO,
             num_hands=max_num_hands,
             min_hand_detection_confidence=min_detection_confidence,
             min_hand_presence_confidence=min_detection_confidence,

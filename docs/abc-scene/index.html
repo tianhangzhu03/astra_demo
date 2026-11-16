@@ -1971,10 +1971,10 @@ function(t,e){&quot;object&quot;==typeof exports&amp;&amp;&quot;undefined&quot;!
     if(key===&#x27;board&#x27;) return bg.clone().lerp(fg,.075);
     if(key===&#x27;edge&#x27;) return bg.clone().lerp(fg,.4);
     if(key===&#x27;grid&#x27;) return bg.clone().lerp(fg,.17);
-    if(key===&#x27;obstacle&#x27;) return cssColor(&#x27;--blue&#x27;).lerp(bg,.18);
+    if(key===&#x27;obstacle&#x27;) return new T.Color(&#x27;#69bdf2&#x27;);
     if(key===&#x27;route&#x27;) return cssColor(&#x27;--orange&#x27;);
     if(key===&#x27;approach&#x27;) return cssColor(&#x27;--green&#x27;);
-    if(key===&#x27;ball&#x27;) return cssColor(&#x27;--green&#x27;);
+    if(key===&#x27;ball&#x27;) return new T.Color(&#x27;#f5643c&#x27;);
     if(key===&#x27;hand&#x27;) return bg.clone().lerp(cssColor(&#x27;--orange&#x27;),.25);
     if(key===&#x27;palm&#x27;) return bg.clone().lerp(cssColor(&#x27;--orange&#x27;),.48);
     if(key===&#x27;box&#x27;) return cssColor(&#x27;--blue&#x27;).lerp(bg,.12);
@@ -2058,8 +2058,6 @@ function(t,e){&quot;object&quot;==typeof exports&amp;&amp;&quot;undefined&quot;!
     const ring=mesh(new T.TorusGeometry(.42,.028,10,64),mat,&#x27;Station_ring&#x27;);ring.position.set(p.x,p.y,.04);
   }
   station(A,mats.approach);station(B,mats.route);station(C,mats.box);
-  label(&#x27;A · START&#x27;,[A.x,A.y,.12],{offset:[0,25],priority:0});
-  label(&#x27;B · PICK&#x27;,[B.x,B.y,1.5],{priority:0});
   segment(&#x27;B_label_leader&#x27;,B.clone().setZ(.12),B.clone().setZ(1.22),.012,mats.edge);
   const target=new T.Group();target.name=&#x27;Inverted_box_open_bottom&#x27;;model.add(target);
   const bx=C.x,by=C.y,bw=1.98*layoutScale,bd=bw,bottom=2.05,roof=3.12,thick=.10;
@@ -2070,7 +2068,7 @@ function(t,e){&quot;object&quot;==typeof exports&amp;&amp;&quot;undefined&quot;!
   block(&#x27;Box_back_wall&#x27;,bx,by+bd/2-.035,(bottom+roof)/2,bw,.07,roof-bottom,mats.glass,target);
   for(const x of [bx-bw/2,bx+bw/2]) for(const y of [by-bd/2,by+bd/2]) segment(&#x27;Box_corner&#x27;,V(x,y,bottom),V(x,y,roof),.034,mats.box,target);
   for(const z of [bottom,roof]) for(const [a,b] of [ [[bx-bw/2,by-bd/2,z],[bx+bw/2,by-bd/2,z]],[[bx+bw/2,by-bd/2,z],[bx+bw/2,by+bd/2,z]],[[bx+bw/2,by+bd/2,z],[bx-bw/2,by+bd/2,z]],[[bx-bw/2,by+bd/2,z],[bx-bw/2,by-bd/2,z]] ]) segment(&#x27;Box_rim&#x27;,V(...a),V(...b),.027,mats.box,target);
-  label(&#x27;C · INVERTED BOX&#x27;,[bx,by,3.52],{detail:true,priority:0});
+  label(&#x27;INVERTED BOX&#x27;,[bx,by,3.52],{detail:true,priority:0});
   label(&#x27;OPEN BELOW&#x27;,[bx,by-.91,2.03],{detail:true,overview:false,offset:[0,18],priority:0});
   const zGuide=new T.Group();zGuide.name=&#x27;Vertical_action&#x27;;model.add(zGuide);
   arrow(V(bx+1.02,by,.9),V(bx+1.02,by,2.65),mats.normal,.027,zGuide);
@@ -2193,7 +2191,7 @@ function(t,e){&quot;object&quot;==typeof exports&amp;&amp;&quot;undefined&quot;!
       const allowed=view===&#x27;detail&#x27;?l.detail:l.overview;
       if(!allowed||(small&amp;&amp;l.priority&gt;1)){l.el.hidden=true;continue;}
       temp.copy(l.pos).project(camera);const x=(temp.x*.5+.5)*w+l.offset[0],y=(-temp.y*.5+.5)*h+l.offset[1];
-      l.el.textContent=small&amp;&amp;view!==&#x27;detail&#x27;&amp;&amp;l.text===&#x27;C · INVERTED BOX&#x27;?&#x27;C · BOX&#x27;:l.text;
+      l.el.textContent=small&amp;&amp;view!==&#x27;detail&#x27;&amp;&amp;l.text===&#x27;INVERTED BOX&#x27;?&#x27;BOX&#x27;:l.text;
       if(l.text===&#x27;−Z&#x27;&amp;&amp;currentStage!==6){l.el.hidden=true;continue;}
       l.el.hidden=false;const lw=l.el.offsetWidth,lh=l.el.offsetHeight;
       const rect={left:x-lw/2,right:x+lw/2,top:y-lh/2,bottom:y+lh/2};

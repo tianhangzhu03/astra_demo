@@ -1,14 +1,13 @@
 import asyncio
-import ast
-from pathlib import Path
 import sys
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 from astra_demo.manual_control import (
-    Actuation, Cue, DIRECTIONS, ManualBleController, STOP_PACKET, command_packet,
+    Actuation, CommandReceipt, Cue, DIRECTIONS, ManualBleController, STOP_PACKET, command_packet,
 )
+from astra_demo.grasp_feedback import GraspFeedback
 
 
 class FakeClient:
@@ -36,7 +35,35 @@ async def wait_until(predicate):
 
 
 class ProtocolTests(unittest.TestCase):
-    def test_all_six_cues_and_endianness(self):
+    def test_simulated_indicator_expires_and_never_consumes_logged_events(self):
+        controller = ManualBleController(False, 'test', 'test')
+        receipt = CommandReceipt(role='grab_prompt')
+        with patch('time.monotonic', return_value=100.0):
+            controller.simulate(Cue.GRASP, Actuation(125, .2), receipt=receipt)
+        display = controller.feedback_snapshot(100.1)
+        self.assertTrue(display.simulated)
+        self.assertEqual(display.trigger.label, 'GRASP CUE')
+        self.assertEqual((display.trigger.volts_mv, display.trigger.duration_s), (125, .2))
+        ended = controller.feedback_snapshot(100.21)
+        self.assertEqual(ended.state, 'idle')
+        self.assertIsNone(ended.trigger)
+        self.assertEqual(ended.last_trigger.label, 'GRASP CUE')
+        self.assertIsNone(controller.feedback_snapshot(102.1).last_trigger)
+        self.assertEqual([e['event'] for e in controller.drain_events()],
+                         ['command_requested', 'command_simulated'])
+        controller.stop_output()
+        self.assertEqual(controller.feedback_snapshot(100.15).state, 'idle')
+        self.assertIsNone(controller._thread)
+
+    def test_cancel_simulated_prompt_hides_active_indicator(self):
+        controller = ManualBleController(False, 'test', 'test')
+        feedback = GraspFeedback(controller)
+        feedback.request_prompt(Actuation(125, 5))
+        self.assertEqual(controller.feedback_snapshot().state, 'active')
+        feedback.cancel()
+        self.assertEqual(controller.feedback_snapshot().state, 'idle')
+
+    def test_all_cues_and_endianness(self):
         for cue, direction in DIRECTIONS.items():
             packet = command_packet(cue, Actuation(2500, .2, 100))
             self.assertEqual(packet, bytes([255, 16, int(cue == Cue.GRASP), direction,
@@ -56,13 +83,12 @@ class ProtocolTests(unittest.TestCase):
         self.assertFalse(controller.submit(Cue.GRASP, Actuation())[0])
         self.assertIsNone(controller._pending)
 
-    def test_no_visual_grab_dispatch(self):
-        source = Path(__file__).parents[1] / 'main.py'
-        tree = ast.parse(source.read_text())
-        calls = [n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call)
-                 and isinstance(n.func, ast.Attribute) and isinstance(n.func.value, ast.Name)
-                 and n.func.value.id == 'ble']
-        self.assertEqual(sorted(calls), ['start', 'stop'])
+    def test_vision_only_never_starts_worker_or_accepts_feedback(self):
+        controller = ManualBleController(False, 'test', 'test')
+        controller.start()
+        self.assertIsNone(controller._thread)
+        self.assertFalse(controller.submit(Cue.GRASP, Actuation(100))[0])
+        self.assertIsNone(controller._pending)
 
 
 class WorkerTests(unittest.IsolatedAsyncioTestCase):
@@ -77,6 +103,40 @@ class WorkerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         self.c.running = False
         await self.task
+
+    async def test_indicator_follows_successful_write_and_commanded_duration(self):
+        receipt = CommandReceipt(role='grasp_confirmation')
+        self.c.submit(Cue.GRASP, Actuation(125, .1), receipt=receipt)
+        self.assertEqual(self.c.feedback_snapshot().state, 'pending')
+        self.assertIsNone(self.c.feedback_snapshot().trigger)
+        await wait_until(lambda: receipt.status == 'sent')
+        display = self.c.feedback_snapshot()
+        self.assertEqual(display.state, 'active')
+        self.assertEqual(display.trigger.label, 'GRASP CONFIRMATION')
+        # A rejected button press must not replace the command currently on the wire.
+        self.assertFalse(self.c.submit(Cue.LEFT, Actuation(125, .1))[0])
+        self.assertEqual(self.c.feedback_snapshot().trigger, display.trigger)
+        self.assertEqual(self.c.feedback_snapshot(receipt.sent_at + .11).state, 'stopping')
+        await wait_until(lambda: receipt.status == 'completed')
+        self.assertEqual(self.c.feedback_snapshot().state, 'idle')
+        self.assertIsNone(self.c.feedback_snapshot().trigger)
+
+    async def test_indicator_clears_on_stop_and_disconnection(self):
+        self.c.submit(Cue.NORMAL, Actuation(125, 5))
+        await wait_until(lambda: self.c.feedback_snapshot().state == 'active')
+        self.assertEqual(self.c.feedback_snapshot().trigger.label, 'NORMAL FORCE')
+        self.c.stop_output()
+        self.assertEqual(self.c.feedback_snapshot().state, 'stopping')
+        self.assertIsNone(self.c.feedback_snapshot().trigger)
+        await wait_until(lambda: not self.c.busy)
+        self.assertEqual(self.c.feedback_snapshot().state, 'idle')
+        self.c.submit(Cue.FORWARD, Actuation(125, 5))
+        await wait_until(lambda: self.c.feedback_snapshot().state == 'active')
+        self.c.is_connected = False
+        display = self.c.feedback_snapshot()
+        self.assertEqual(display.state, 'disconnected')
+        self.assertIsNone(display.trigger)
+        self.assertIsNone(display.last_trigger)
 
     async def test_finite_pulse_and_no_queue(self):
         self.assertTrue(self.c.submit(Cue.LEFT, Actuation(100, .1))[0])
@@ -107,6 +167,50 @@ class WorkerTests(unittest.IsolatedAsyncioTestCase):
         self.client.char.properties = ['write-without-response']
         await self.c._write(self.client, self.client.char, STOP_PACKET)
         self.assertFalse(self.client.writes[-1][1])
+
+    async def test_tracked_command_reports_sent_then_completed(self):
+        receipt = CommandReceipt()
+        self.c.submit(Cue.GRASP, Actuation(100, .1), receipt=receipt)
+        self.assertEqual(receipt.status, 'pending')
+        await wait_until(lambda: receipt.status == 'sent')
+        self.assertIsNotNone(receipt.sent_at)
+        await wait_until(lambda: receipt.status == 'completed')
+        self.assertGreater(receipt.finished_at, receipt.sent_at)
+        self.assertEqual(receipt.connection_id, self.c.connection_id)
+
+    async def test_cancelling_receipt_before_send_drops_only_that_command(self):
+        receipt = CommandReceipt()
+        self.c.submit(Cue.GRASP, Actuation(100, .1), receipt=receipt)
+        self.c.cancel(receipt)
+        await asyncio.sleep(.03)
+        self.assertEqual(self.client.writes, [])
+        self.assertEqual(receipt.status, 'cancelled')
+        self.assertTrue(self.c.submit(Cue.LEFT, Actuation(100, .1))[0])
+        self.c.cancel(receipt)
+        await wait_until(lambda: not self.c._busy)
+        self.assertEqual(self.client.writes[0][0], command_packet(Cue.LEFT, Actuation(100, .1)))
+
+    async def test_real_worker_sends_two_single_pulses_for_fast_grasp(self):
+        feedback = GraspFeedback(self.c)
+        settings = Actuation(100, .1, 100)
+        self.assertTrue(feedback.request_prompt(settings)[0])
+        await wait_until(lambda: feedback.prompt.status == 'sent')
+        self.assertEqual(feedback.poll_prompt(), (True, False))
+        feedback.update(True)
+        async def finish():
+            while feedback.confirmation is None or feedback.confirmation.status != 'completed':
+                feedback.update(True)
+                await asyncio.sleep(.01)
+        await asyncio.wait_for(finish(), 2)
+        packets = [p for p, _ in self.client.writes]
+        vibration = command_packet(Cue.GRASP, settings)
+        zero = bytes([255, 16, 0, 0, 0, 0, 0, 0, 1])
+        self.assertEqual(packets, [vibration, zero, STOP_PACKET, vibration, zero, STOP_PACKET])
+        sent = [e for e in self.c.drain_events() if e['event'] == 'command_sent']
+        self.assertEqual([e['role'] for e in sent], ['grab_prompt', 'grasp_confirmation'])
+        self.assertTrue(all(e['commanded_voltage_mv'] == 100 and e['commanded_duration_s'] == .1
+                            and e['frequency_hz'] == 100 for e in sent))
+        self.assertLess(sent[0]['mono'], sent[1]['mono'])
 
     async def test_hard_stop_attempted_if_soft_stop_fails(self):
         original = self.client.write_gatt_char

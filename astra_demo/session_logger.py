@@ -25,7 +25,7 @@ class SessionLogger:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         now = datetime.now().astimezone()
-        self.run_id = now.strftime("%Y%m%d_%H%M%S")
+        self.run_id = now.strftime("%Y%m%d_%H%M%S_%f")
         self.path = self.output_dir / f"grab_log_{self.subject_id}_{self.run_id}.csv"
         self._file = self.path.open("w", newline="", encoding="utf-8")
         self._writer = csv.writer(self._file)

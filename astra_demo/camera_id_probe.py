@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from sys import platform
+
 import cv2
 
 MAX_CAM_ID = 10
 WINDOW_NAME = "Camera ID Probe"
+CAMERA_BACKEND = cv2.CAP_MSMF if platform == "win32" else cv2.CAP_ANY
 
 
 def probe_camera(cam_id: int):
-    cap = cv2.VideoCapture(cam_id)
+    cap = cv2.VideoCapture(cam_id, CAMERA_BACKEND)
     if not cap.isOpened():
         cap.release()
         return False, None
@@ -34,7 +37,7 @@ def list_available_cameras(max_id: int = MAX_CAM_ID):
 
 def preview_loop(start_id: int):
     current_id = start_id
-    cap = cv2.VideoCapture(current_id)
+    cap = cv2.VideoCapture(current_id, CAMERA_BACKEND)
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open camera id={current_id}")
 
@@ -59,14 +62,14 @@ def preview_loop(start_id: int):
             next_id = key - ord("0")
             if next_id != current_id:
                 cap.release()
-                cap = cv2.VideoCapture(next_id)
+                cap = cv2.VideoCapture(next_id, CAMERA_BACKEND)
                 if cap.isOpened():
                     current_id = next_id
                     print(f"[SWITCH] now using id={current_id}")
                 else:
                     print(f"[FAIL] id={next_id} unavailable")
                     cap.release()
-                    cap = cv2.VideoCapture(current_id)
+                    cap = cv2.VideoCapture(current_id, CAMERA_BACKEND)
 
     cap.release()
     cv2.destroyAllWindows()

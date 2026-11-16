@@ -39,9 +39,8 @@ class VirtualProp:
             self.state = VirtualPropState.IDLE if keep_idle_visible else VirtualPropState.HIDDEN
             return
         if hand_xy is None:
-            # During fast top-view motion or zone crossing, keep the last held pose instead of dropping immediately.
-            if self.state != VirtualPropState.HELD:
-                self.state = VirtualPropState.IDLE if keep_idle_visible else VirtualPropState.HIDDEN
+            # Hold stays latched even if no reliable position is available.
+            self.state = VirtualPropState.HELD
             return
 
         entering_held = self.state != VirtualPropState.HELD
@@ -52,18 +51,11 @@ class VirtualProp:
             self.pos_xy = hand_f
             return
 
-        px, py = self.pos_xy
-        dist = float(np.hypot(hand_f[0] - px, hand_f[1] - py))
-        # Adaptive alpha: move faster when far away, preserve smoothness for small jitter.
-        alpha_boost = min(0.22, dist / 220.0)
-        alpha = min(0.92, max(0.0, self.follow_alpha + alpha_boost))
-        self.pos_xy = (
-            (1.0 - alpha) * px + alpha * hand_f[0],
-            (1.0 - alpha) * py + alpha * hand_f[1],
-        )
+        # PalmTracker applies a time-aware adaptive filter. A second EMA adds trailing lag.
+        self.pos_xy = hand_f
 
     def draw(self, frame: np.ndarray, show_label: bool = True) -> None:
         if self.state == VirtualPropState.HIDDEN:
             return
         radius = self.size_held if self.state == VirtualPropState.HELD else self.size_follow
-        draw_sphere(frame, self.pos_xy, radius)
+        draw_sphere(frame, self.pos_xy, radius, held=self.state == VirtualPropState.HELD)

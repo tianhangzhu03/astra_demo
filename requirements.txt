@@ -3,3 +3,4 @@ mediapipe
 bleak
 numpy
 Pillow
+matplotlib

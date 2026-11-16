@@ -1,4 +1,4 @@
-"""Cached, antialiased blue sphere; compositing never blurs the camera image."""
+"""Cached pastel spheres with softbox highlights; camera pixels remain sharp."""
 
 from functools import lru_cache
 
@@ -7,7 +7,7 @@ import numpy as np
 
 
 @lru_cache(maxsize=8)
-def sphere_sprite(radius: int):
+def sphere_sprite(radius: int, held: bool = False, pigment=None):
     pad = int(np.ceil(radius * 1.8))
     width = pad * 2 + 1
     ss = 3
@@ -16,19 +16,27 @@ def sphere_sprite(radius: int):
     r2 = x * x + y * y
     mask = (r2 <= 1.0).astype(np.float32)
     z = np.sqrt(np.maximum(0.0, 1.0 - r2))
-    light = np.array([-0.45, -0.55, 0.78], dtype=np.float32)
+    light = np.array([-0.45, -0.55, 0.70], dtype=np.float32)
     light /= np.linalg.norm(light)
     diffuse = np.maximum(0.0, x * light[0] + y * light[1] + z * light[2])
     halfway = light + np.array([0.0, 0.0, 1.0], dtype=np.float32)
     halfway /= np.linalg.norm(halfway)
     spec = np.maximum(0.0, x * halfway[0] + y * halfway[1] + z * halfway[2])
-    # Linear-light shading: a broad softbox reflection on satin blue resin.
-    base = np.array([0.32, 0.13, 0.035], dtype=np.float32)  # BGR, linear
-    linear = base * (0.25 + 0.72 * diffuse[..., None])
-    linear += (0.16 * spec ** 42 + 0.018 * spec ** 8)[..., None] * np.array([0.90, 0.88, 0.82])
+    # OpenCV uses BGR. Pale sky blue / mint green retain the existing state colors.
+    # Convert the chosen sRGB pigment to linear light before shading.
+    srgb = np.array(pigment if pigment is not None else ([169, 222, 122] if held else [250, 195, 130]), dtype=np.float32) / 255
+    base = np.where(srgb <= .04045, srgb / 12.92, ((srgb + .055) / 1.055) ** 2.4)
+    linear = base * (0.44 + 0.64 * diffuse[..., None])
+    # Broad reflection plus a smaller bright core give the surface a rounded gloss.
+    linear += (0.20 * spec ** 24 + 0.10 * spec ** 85)[..., None] * np.array([1.0, .98, .94])
+    # A restrained reflected rim lifts the lower edge without flattening the sphere.
+    rim = (1 - z) ** 3 * (.3 + .7 * np.clip(y, 0, 1))
+    linear += (0.055 * rim)[..., None] * np.array([1.0, .91, .80])
     linear = np.clip(linear, 0.0, 1.0)
     color = np.where(linear <= 0.0031308, 12.92 * linear, 1.055 * linear ** (1 / 2.4) - 0.055) * 255
-    shadow = 0.19 * np.exp(-2.8 * (((x - 0.25) / 0.95) ** 2 + ((y - 0.57) / 0.75) ** 2))
+    # Diffuse cast shadow and a small contact shadow establish depth on the video.
+    shadow = 0.16 * np.exp(-2.8 * (((x - .20) / .95) ** 2 + ((y - .88) / .43) ** 2))
+    shadow += .075 * np.exp(-3.5 * (((x - .06) / .63) ** 2 + ((y - 1.01) / .15) ** 2))
     alpha = mask + shadow * (1 - mask)
     premult = color * mask[..., None] + np.array([32, 29, 26]) * (shadow * (1 - mask))[..., None]
     # Downsample premultiplied color and alpha together to avoid a pale fringe.
@@ -37,9 +45,9 @@ def sphere_sprite(radius: int):
     return pad, premult, alpha
 
 
-def draw_sphere(frame: np.ndarray, center, radius: int) -> None:
+def draw_sphere(frame: np.ndarray, center, radius: int, held: bool = False, *, pigment=None) -> None:
     radius = max(1, int(radius))
-    pad, color, alpha = sphere_sprite(radius)
+    pad, color, alpha = sphere_sprite(radius, held, pigment)
     x, y = int(center[0]), int(center[1])
     left, top = x - pad, y - pad
     x0, y0 = max(0, left), max(0, top)
