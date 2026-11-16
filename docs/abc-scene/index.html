@@ -1872,11 +1872,11 @@ html&gt;body{padding:0}&lt;/style&gt;
         &lt;option value=&quot;0&quot;&gt;01 · A → B / Shear&lt;/option&gt;
         &lt;option value=&quot;1&quot;&gt;02 · Pick / Vibration&lt;/option&gt;
         &lt;option value=&quot;2&quot;&gt;03 · B → C / Shear&lt;/option&gt;
-        &lt;option value=&quot;3&quot;&gt;04 · Flip / Torsion&lt;/option&gt;
+        &lt;option value=&quot;3&quot;&gt;04 · CW 90° / Torsion&lt;/option&gt;
         &lt;option value=&quot;4&quot;&gt;05 · Lift +Z / Normal&lt;/option&gt;
         &lt;option value=&quot;5&quot;&gt;06 · Release / Vibration&lt;/option&gt;
         &lt;option value=&quot;6&quot;&gt;07 · Lower −Z / Normal&lt;/option&gt;
-        &lt;option value=&quot;7&quot;&gt;08 · Flip back / Torsion&lt;/option&gt;
+        &lt;option value=&quot;7&quot;&gt;08 · CCW 90° back / Torsion&lt;/option&gt;
       &lt;/select&gt;
     &lt;/label&gt;
   &lt;/div&gt;
@@ -1884,7 +1884,7 @@ html&gt;body{padding:0}&lt;/style&gt;
     &lt;span class=&quot;viz-row&quot;&gt;&lt;span class=&quot;abc-stage&quot; aria-live=&quot;polite&quot;&gt;A → B · Shear W / D&lt;/span&gt;&lt;span class=&quot;abc-percent text-small tabular-nums&quot;&gt;0%&lt;/span&gt;&lt;/span&gt;
     &lt;input class=&quot;form-range&quot; type=&quot;range&quot; min=&quot;0&quot; max=&quot;1000&quot; value=&quot;0&quot; step=&quot;1&quot; aria-label=&quot;Sequence progress&quot;&gt;
   &lt;/label&gt;
-  &lt;div class=&quot;abc-caption text-small text-muted&quot;&gt;Box: square footprint, open below · planned feedback log: 1 Hz · conceptual capture on release&lt;/div&gt;
+  &lt;div class=&quot;abc-caption text-small text-muted&quot;&gt;Compact route · CW / CCW: 90° · box open below · WASD / Normal: 1 pulse per second&lt;/div&gt;
 &lt;/div&gt;
 &lt;style&gt;
 #abc-spatial-scene { display:grid; gap:calc(var(--font-size-base) * .75); }
@@ -1974,7 +1974,7 @@ function(t,e){&quot;object&quot;==typeof exports&amp;&amp;&quot;undefined&quot;!
     if(key===&#x27;obstacle&#x27;) return cssColor(&#x27;--blue&#x27;).lerp(bg,.18);
     if(key===&#x27;route&#x27;) return cssColor(&#x27;--orange&#x27;);
     if(key===&#x27;approach&#x27;) return cssColor(&#x27;--green&#x27;);
-    if(key===&#x27;ball&#x27;) return cssColor(&#x27;--yellow&#x27;);
+    if(key===&#x27;ball&#x27;) return cssColor(&#x27;--green&#x27;);
     if(key===&#x27;hand&#x27;) return bg.clone().lerp(cssColor(&#x27;--orange&#x27;),.25);
     if(key===&#x27;palm&#x27;) return bg.clone().lerp(cssColor(&#x27;--orange&#x27;),.48);
     if(key===&#x27;box&#x27;) return cssColor(&#x27;--blue&#x27;).lerp(bg,.12);
@@ -2030,14 +2030,16 @@ function(t,e){&quot;object&quot;==typeof exports&amp;&amp;&quot;undefined&quot;!
   const gridMat=new T.LineBasicMaterial({color:themeColor(&#x27;grid&#x27;)});colorBindings.push([gridMat,&#x27;grid&#x27;]);
   const grid=new T.LineSegments(gridGeo,gridMat);grid.name=&#x27;Workspace_grid&#x27;;model.add(grid);
   for(const [a,b] of [[[ -7.1,-4.3,.025],[7.1,-4.3,.025]],[[7.1,-4.3,.025],[7.1,4.3,.025]],[[7.1,4.3,.025],[-7.1,4.3,.025]],[[-7.1,4.3,.025],[-7.1,-4.3,.025]]]) segment(&#x27;Boundary&#x27;,V(...a),V(...b),.018,mats.edge);
-  const obstacles=[{name:&#x27;Obstacle_01&#x27;,x:-1.9,y:-1.6,w:5.4,d:5.2,h:1.3},{name:&#x27;Obstacle_02&#x27;,x:4.275,y:-.25,w:2.95,d:4.8,h:1.65},{name:&#x27;Obstacle_03&#x27;,x:3.55,y:3.14,w:1.5,d:1.98,h:1.65}];
+  const layoutScale=.8; // 20% shorter routes and smaller obstacle footprints.
+  const compact=p=&gt;p.multiply(V(layoutScale,layoutScale,1));
+  const obstacles=[{name:&#x27;Obstacle_01&#x27;,x:-1.9,y:-1.6,w:5.4,d:5.2,h:1.3},{name:&#x27;Obstacle_02&#x27;,x:4.275,y:-.25,w:2.95,d:4.8,h:1.65},{name:&#x27;Obstacle_03&#x27;,x:3.55,y:3.14,w:1.5,d:1.98,h:1.65}].map(o=&gt;({...o,x:o.x*layoutScale,y:o.y*layoutScale,w:o.w*layoutScale,d:o.d*layoutScale}));
   obstacles.forEach(o=&gt;{block(o.name,o.x,o.y,o.h/2,o.w,o.d,o.h,mats.obstacle);const geo=new T.EdgesGeometry(new T.BoxGeometry(o.w,o.d,o.h));const line=new T.LineSegments(geo,new T.LineBasicMaterial({color:themeColor(&#x27;box&#x27;)}));line.position.set(o.x,o.y,o.h/2);model.add(line);colorBindings.push([line.material,&#x27;box&#x27;]);});
-  label(&#x27;OBSTACLE 1&#x27;,[-1.9,-1.6,1.4],{secondary:true,priority:2});
-  label(&#x27;OBSTACLE 2&#x27;,[4.25,-.25,1.75],{secondary:true,priority:2});
-  label(&#x27;CENTER AVOIDED&#x27;,[-1.9,-2.0,1.4],{secondary:true,offset:[0,18],priority:3});
-  const A=V(-5.85,-3.15,.80),B=V(1.75,2.75,.80),C=V(5.35,3.12,.80);
-  const reach=[A,V(-5.85,2.75,.80),B];
-  const carry=[B,V(1.75,-3.45,.80),V(6.6,-3.45,.80),V(6.6,3.12,.80),C];
+  label(&#x27;OBSTACLE 1&#x27;,[-1.52,-1.28,1.4],{secondary:true,priority:2});
+  label(&#x27;OBSTACLE 2&#x27;,[3.4,-.2,1.75],{secondary:true,priority:2});
+  label(&#x27;CENTER AVOIDED&#x27;,[-1.52,-1.6,1.4],{secondary:true,offset:[0,18],priority:3});
+  const A=compact(V(-5.85,-3.15,.80)),B=compact(V(1.75,2.75,.80)),C=compact(V(5.35,3.12,.80));
+  const reach=[A,compact(V(-5.85,2.75,.80)),B];
+  const carry=[B,compact(V(1.75,-3.45,.80)),compact(V(6.6,-3.45,.80)),compact(V(6.6,3.12,.80)),C];
   function route(points,mat,keys) {
     for(let i=0;i&lt;points.length-1;i++){
       const a=points[i].clone().setZ(.055),b=points[i+1].clone().setZ(.055);
@@ -2060,7 +2062,7 @@ function(t,e){&quot;object&quot;==typeof exports&amp;&amp;&quot;undefined&quot;!
   label(&#x27;B · PICK&#x27;,[B.x,B.y,1.5],{priority:0});
   segment(&#x27;B_label_leader&#x27;,B.clone().setZ(.12),B.clone().setZ(1.22),.012,mats.edge);
   const target=new T.Group();target.name=&#x27;Inverted_box_open_bottom&#x27;;model.add(target);
-  const bx=C.x,by=C.y,bw=1.98,bd=bw,bottom=2.05,roof=3.12,thick=.10;
+  const bx=C.x,by=C.y,bw=1.98*layoutScale,bd=bw,bottom=2.05,roof=3.12,thick=.10;
   block(&#x27;Box_roof&#x27;,bx,by,roof,bw,bd,thick,mats.box,target);
   block(&#x27;Box_left_wall&#x27;,bx-bw/2+.035,by,(bottom+roof)/2,.07,bd,roof-bottom,mats.glass,target);
   block(&#x27;Box_right_wall&#x27;,bx+bw/2-.035,by,(bottom+roof)/2,.07,bd,roof-bottom,mats.glass,target);
@@ -2106,15 +2108,17 @@ function(t,e){&quot;object&quot;==typeof exports&amp;&amp;&quot;undefined&quot;!
   const ballOffset=V(0,.07,-.41),ballRest=B.clone().add(ballOffset);
   const flipGuide=new T.Group();flipGuide.name=&#x27;Flip_arrow&#x27;;model.add(flipGuide);
   function makeFlipArc() {
-    const pts=[];for(let i=0;i&lt;=48;i++){const a=-.6+i/48*4.8;pts.push(V(Math.cos(a)*.71,0,Math.sin(a)*.71));}
+    const pts=[];for(let i=0;i&lt;=48;i++){const a=-Math.PI/2-i/48*Math.PI/2;pts.push(V(Math.cos(a)*.71,0,Math.sin(a)*.71));}
     const curve=new T.CatmullRomCurve3(pts);mesh(new T.TubeGeometry(curve,64,.022,8,false),mats.normal,&#x27;Torsion_arc&#x27;,flipGuide);
     const a=pts[pts.length-2],b=pts[pts.length-1];arrow(a,b,mats.normal,.05,flipGuide);
   }
   makeFlipArc();flipGuide.visible=false;
-  // 1 Hz is the planned feedback-record cadence, not a timed cue trigger.
+  // The live demo repeats selected WASD/Normal pulses at 1 Hz.
   // This concept animation does not operate BLE or implement experiment logging.
+  const flipAngle=Math.PI/2;
+  const liftHeight=2.46; // At 90 degrees the ball offset is horizontal; lift its center above the opening.
   const stageRanges=[[0,12],[12,14],[14,35],[35,38],[38,41],[41,43],[43,46],[46,49]];
-  const stages=[&#x27;A → B · Shear W / D&#x27;,&#x27;B · Pick / Vibration&#x27;,&#x27;B → C · Shear S / D / W / A&#x27;,&#x27;C · Flip / CW torsion&#x27;,&#x27;C · Lift +Z / Normal&#x27;,&#x27;C · Release / Vibration&#x27;,&#x27;C · Lower −Z / Normal&#x27;,&#x27;C · Flip back / CCW torsion&#x27;];
+  const stages=[&#x27;A → B · Shear W / D&#x27;,&#x27;B · Pick / Vibration&#x27;,&#x27;B → C · Shear S / D / W / A&#x27;,&#x27;C · Rotate down 90° / CW torsion&#x27;,&#x27;C · Lift +Z / Normal&#x27;,&#x27;C · Release / Vibration&#x27;,&#x27;C · Lower −Z / Normal&#x27;,&#x27;C · Return 90° / CCW torsion&#x27;];
   const total=49;let time=0,playing=false,currentStage=-1,view=&#x27;overview&#x27;;
   const orbit={az:.55,elevation:.60,radius:23.5,target:V(0,.2,.25)};
   let pendingCamera=null,frameRequested=false,lastStamp=0;
@@ -2130,18 +2134,19 @@ function(t,e){&quot;object&quot;==typeof exports&amp;&amp;&quot;undefined&quot;!
     if(time&lt;12)p=interpolatePath(reach,[6,6],time/12);
     else if(time&lt;14){p=B.clone();grip=ease((time-12)/2);}
     else if(time&lt;35){p=interpolatePath(carry,[7,5,7,2],(time-14)/21);grip=1;}
-    else if(time&lt;38){p=C.clone();grip=1;angle=ease((time-35)/3)*Math.PI;}
-    else if(time&lt;41){p=C.clone();p.z=mix(.8,2.05,ease((time-38)/3));grip=1;angle=Math.PI;}
-    else if(time&lt;43){p=C.clone().setZ(2.05);grip=1-ease((time-41)/2);angle=Math.PI;}
-    else if(time&lt;46){p=C.clone().setZ(mix(2.05,.8,ease((time-43)/3)));angle=Math.PI;}
-    else {p=C.clone();angle=(1-ease((time-46)/3))*Math.PI;}
+    else if(time&lt;38){p=C.clone();grip=1;angle=ease((time-35)/3)*flipAngle;}
+    else if(time&lt;41){p=C.clone();p.z=mix(.8,liftHeight,ease((time-38)/3));grip=1;angle=flipAngle;}
+    else if(time&lt;43){p=C.clone().setZ(liftHeight);grip=1-ease((time-41)/2);angle=flipAngle;}
+    else if(time&lt;46){p=C.clone().setZ(mix(liftHeight,.8,ease((time-43)/3)));angle=flipAngle;}
+    else {p=C.clone();angle=(1-ease((time-46)/3))*flipAngle;}
     hand.position.copy(p);hand.rotation.set(0,angle,0);setGrip(grip);
     if(time&lt;14)ball.position.copy(ballRest);
     else if(time&lt;41.8)ball.position.copy(ballOffset).applyQuaternion(hand.quaternion).add(p);
-    else ball.position.set(C.x,C.y+.07,2.46);
+    else ball.position.copy(ballOffset).applyAxisAngle(V(0,1,0),flipAngle).add(C.clone().setZ(liftHeight));
     // The same ball material is used before, during, and after grasp.
     flipGuide.position.copy(C).add(V(0,-.18,.04));flipGuide.visible=s===3||s===7;
-    flipGuide.rotation.y=s===7?Math.PI:0;
+    flipGuide.rotation.y=s===7?Math.PI/2:0;
+    flipGuide.scale.x=s===7?-1:1;
     zGuide.visible=true;downGuide.visible=s===6;
     slider.value=String(Math.round(time/total*1000));percent.textContent=Math.round(time/total*100)+&#x27;%&#x27;;
     if(s!==currentStage){currentStage=s;select.value=String(s);if(announce)stageText.textContent=stages[s];}
@@ -2174,7 +2179,7 @@ function(t,e){&quot;object&quot;==typeof exports&amp;&amp;&quot;undefined&quot;!
     view=name;root.querySelectorAll(&#x27;[data-view]&#x27;).forEach(b=&gt;b.setAttribute(&#x27;aria-pressed&#x27;,String(b.dataset.view===name)));
     const aspect=viewport.clientWidth/viewport.clientHeight;
     const overviewRadius=Math.max(17.6,17.6*1.45/aspect);
-    const p=name===&#x27;detail&#x27;?{az:1.18,elevation:.20,radius:Math.max(6.5,6.5/aspect),target:V(C.x,C.y,1.68)}:name===&#x27;front&#x27;?{az:0,elevation:.28,radius:Math.max(21,21*1.45/aspect),target:V(0,0,.55)}:{az:.55,elevation:.60,radius:overviewRadius,target:V(0,.2,.65)};
+    const p=name===&#x27;detail&#x27;?{az:-2.45,elevation:.28,radius:Math.max(6.5,6.5/aspect),target:V(C.x,C.y,1.68)}:name===&#x27;front&#x27;?{az:0,elevation:.28,radius:Math.max(21,21*1.45/aspect),target:V(0,0,.55)}:{az:.55,elevation:.60,radius:overviewRadius,target:V(0,.2,.65)};
     if(name!==&#x27;detail&#x27;)fitCourse(p);
     if(animate&amp;&amp;!matchMedia(&#x27;(prefers-reduced-motion: reduce)&#x27;).matches)pendingCamera={from:{...orbit,target:orbit.target.clone()},to:p,start:performance.now()};
     else {Object.assign(orbit,p);pendingCamera=null;}

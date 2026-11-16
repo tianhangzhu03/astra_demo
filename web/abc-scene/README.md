@@ -10,10 +10,11 @@ walkthrough at the repository's Pages root and the Python demo are separate.
 
 - A → B: planar movement around the first obstacle, followed by a grasp.
 - B → C: transport around the obstacles while avoiding the center area.
-- C: flip the hand, lift in +Z, release, withdraw in −Z, and flip back.
+- C: rotate CW 90°, lift in +Z, release, withdraw in −Z, and return CCW 90°.
 - The box has a square top-view footprint and a downward-facing opening (∩ in side view).
-- WASD cues are triggered on demand. **1 feedback per 1 second refers to planned
-  feedback logging**, not an automatic one-second hardware trigger.
+- The live demo repeats the selected WASD / Normal Static cue once per second.
+  This page only illustrates the sequence and never sends hardware output.
+- Routes and obstacle footprints are 20% smaller within the original workspace.
 - The ball keeps the same material throughout grasp and release.
 - Dimensions and action durations are illustrative. Retaining the released ball
   in the inverted box is a conceptual capture rule, not a gravity simulation.
